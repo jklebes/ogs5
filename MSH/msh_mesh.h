@@ -22,6 +22,7 @@
 #define msh_mesh_INC
 
 // C++
+#include <cfloat>
 #include <string>
 
 /** depreciated includes of GEOLib */

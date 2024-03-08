@@ -2,6 +2,18 @@
 [![BSD License (modified)](http://img.shields.io/badge/license-BSD-blue.svg?style=flat-square)](https://github.com/ufz/ogs5/blob/master/LICENSE.txt)
 [![Travis](https://img.shields.io/travis/ufz/ogs5.svg?style=flat-square)](https://travis-ci.org/ufz/ogs5)
 
+This is the University of Edinburgh version, in use as of March 2024.
+Routines ``FEM/rf_bio.cpp`` were added.
+
+To build from this source (on a cluster with MPI) enforce MPI and C++ version less than 17:
+
+```bash
+mkdir build
+cd build 
+cmake .. -DCMAKE_BUILD_TYPE=Release -DPARALLEL_USE_MPI=ON -DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF
+cmake --build . --config Release
+```
+
 # OGS-5
 
 - General homepage: https://www.opengeosys.org/ogs-5

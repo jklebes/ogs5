@@ -64,3 +64,4 @@ double Logistic_Growth_Model_Time_Integral(double N0, double C1);
 double GetBioSourceTerm(long);
 void Update_sourceterm_exchangeareas();
 double Max_Feasible_Metabolic_Rate(double C1, double met_rate, double ne);
+double GetBioSourceTerm(long node_no);

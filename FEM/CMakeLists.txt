@@ -28,6 +28,7 @@ set( HEADERS
 	ProcessInfo.h
 	prototyp.h
 	rf_bc_new.h
+	rf_bio.h
 	rf_fct.h
 	rf_fluid_momentum.h
 	rf_ic_new.h
@@ -90,6 +91,7 @@ set( SOURCES
 	problem.cpp
 	ProcessInfo.cpp
 	rf_bc_new.cpp
+	rf_bio.cpp
 	rf_fct.cpp
 	rf_fluid_momentum.cpp
 	rf_ic_new.cpp
