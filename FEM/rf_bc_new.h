@@ -190,6 +190,7 @@ private:
     // FCT
     std::string fct_name;
     bool conditional;
+	bool gradient_switch;
 
     LinearFunctionData* dis_linear_f;  // 24.8.2011. WW
 
@@ -240,6 +241,9 @@ public:
     double node_value_offset;
     double node_value_pre_calc;
     int CurveIndex;           // Time dependent function index
+	bool node_gradient_switch;//Where a curve is used tochange the gradients reference depth depending on time
+	double m_node_value_gradient_ref_depth_gradient;
+	double m_node_value_gradient_ref_depth;
     std::string pcs_pv_name;  // YD/WW
     //
     std::string fct_name;  // WW

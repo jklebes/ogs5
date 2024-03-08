@@ -46,6 +46,8 @@ ProcessType convertProcessType(const std::string& pcs_type_string)
         return DEFORMATION_H2;
     if (pcs_type_string.compare("AIR_FLOW") == 0)
         return AIR_FLOW;
+	if (pcs_type_string.compare("BIOLOGICAL") == 0)//CMCD
+		return BIOLOGICAL;
     if (pcs_type_string.compare("FLUID_MOMENTUM") == 0)
         return FLUID_MOMENTUM;
     if (pcs_type_string.compare("RANDOM_WALK") == 0)
@@ -101,6 +103,8 @@ std::string convertProcessTypeToString(ProcessType pcs_type)
             return "DEFORMATION_H2";
         case AIR_FLOW:
             return "AIR_FLOW";
+		case BIOLOGICAL:
+			return "BIOLOGICAL";
         case FLUID_MOMENTUM:
             return "FLUID_MOMENTUM";
         case RANDOM_WALK:
@@ -370,6 +374,8 @@ DistributionType convertDisType(const std::string& dis_type_string)
         return CONSTANT;
     if (dis_type_string.compare("ANALYTICAL") == 0)
         return ANALYTICAL;
+	if (dis_type_string.compare("BIO") == 0)
+		return BIO;
     if (dis_type_string.compare("AVERAGE") == 0)
         return AVERAGE;
     if (dis_type_string.compare("CONSTANT_GEO") == 0)
@@ -382,6 +388,8 @@ DistributionType convertDisType(const std::string& dis_type_string)
         return LINEAR;
     if (dis_type_string.compare("POINT") == 0)
         return POINT;
+	if (dis_type_string.compare("ELEMENT") == 0)
+		return ELEMENT;
     if (dis_type_string.compare("CONSTANT_NEUMANN") == 0)
         return CONSTANT_NEUMANN;
     if (dis_type_string.compare("LINEAR_NEUMANN") == 0)
@@ -410,6 +418,8 @@ DistributionType convertDisType(const std::string& dis_type_string)
         return FUNCTION;  // 24.08.2011. WW
     if (dis_type_string.compare("TRANSFER_SURROUNDING") == 0)
         return TRANSFER_SURROUNDING;
+	if (dis_type_string.compare("CAUCHY") == 0)
+		return CAUCHY;
     else
     {
         std::cout << "convertDisType #" << dis_type_string << "# not found"
@@ -423,6 +433,8 @@ std::string convertDisTypeToString(DistributionType dis_type)
 {
     if (dis_type == ANALYTICAL)
         return "ANALYTICAL";
+	if (dis_type == BIO)
+		return "BIO";
     if (dis_type == AVERAGE)
         return "AVERAGE";
     if (dis_type == CONSTANT)
@@ -437,6 +449,8 @@ std::string convertDisTypeToString(DistributionType dis_type)
         return "LINEAR";
     if (dis_type == POINT)
         return "POINT";
+	if (dis_type == ELEMENT)
+		return "ELEMENT";
     if (dis_type == CONSTANT_NEUMANN)
         return "CONSTANT_NEUMANN";
     if (dis_type == LINEAR_NEUMANN)
@@ -463,8 +477,8 @@ std::string convertDisTypeToString(DistributionType dis_type)
         return "RECHARGE";
     if (dis_type == FUNCTION)
         return "FUNCTION";  // 24.08.2011. WW
-    if (dis_type == TRANSFER_SURROUNDING)
-        return "TRANSFER_SURROUNDING";
+    if (dis_type == CAUCHY)
+        return "CAUCHY";
 
     return "INVALID_DIS_TYPE";
 }

@@ -1038,47 +1038,69 @@ void MFPWrite(std::string base_file_name)
 void CFluidProperties::CalPrimaryVariable(
     std::vector<std::string>& pcs_name_vector)
 {
-    CRFProcess* m_pcs = NULL;
-
+	CRFProcess* m_pcs = NULL;
+	CFiniteElementStd* tFem_Ele_Std;
     int nidx0, nidx1;
-    if (!Fem_Ele_Std)  // OK
-        return;
+	//if (!Fem_Ele_Std)  // OK
+	//{
+    //  cout << "Do you have an mfp file?" << endl;
+	//	return;
+		//int test = 0;
+	//}
+	primary_variable[0] = 0.0;
+    primary_variable[1] = 0.0;
+    primary_variable[2] = 0.0;
 
-    primary_variable[0] = 0;
-    primary_variable[1] = 0.;
-    primary_variable[2] = 0;
+	int index = Fem_Ele_Std->GetMeshElement()->GetIndex();
+	
+	
 
     for (int i = 0; i < (int)pcs_name_vector.size(); i++)
     {
         // MX  m_pcs = PCSGet("HEAT_TRANSPORT");
         m_pcs = PCSGet(pcs_name_vector[i], true);
         if (!m_pcs)
-            return;  // MX
-        nidx0 = m_pcs->GetNodeValueIndex(pcs_name_vector[i]);
+            continue;  // MX  //CMCD Continue instead of return
+
+		if (m_pcs->getLinearFEMAssembler()->PcsType != Fem_Ele_Std->PcsType) {//Dont reset the process if it is called from that process in the from the mmp file.
+			tFem_Ele_Std = m_pcs->GetAssembler();
+			tFem_Ele_Std->ConfigElement(m_pcs->m_msh->ele_vector[index]);
+		}
+		else tFem_Ele_Std = Fem_Ele_Std;
+		nidx0 = m_pcs->GetNodeValueIndex(pcs_name_vector[i]);
         nidx1 = nidx0 + 1;
+
+		if (aktueller_zeitschritt == 1) {
+			mode = 2;//Shapefunctions have not yet been evaluated for the coupled processes
+		}
+		else mode = 0;//Shapefunctions set for all gp's
 
         if (mode == 0)  // Gauss point values
         {
-            primary_variable_t0[i] = Fem_Ele_Std->interpolate(nidx0, m_pcs);
-            primary_variable_t1[i] = Fem_Ele_Std->interpolate(nidx1, m_pcs);
-            primary_variable[i] = (1. - Fem_Ele_Std->pcs->m_num->ls_theta) *
-                                      Fem_Ele_Std->interpolate(nidx0, m_pcs) +
-                                  Fem_Ele_Std->pcs->m_num->ls_theta *
-                                      Fem_Ele_Std->interpolate(nidx1, m_pcs);
+            primary_variable_t0[i] = tFem_Ele_Std->interpolate(nidx0, m_pcs);
+            primary_variable_t1[i] = tFem_Ele_Std->interpolate(nidx1, m_pcs);
+			if (primary_variable_t0[i] + primary_variable_t1[i] > 0.1) {
+				i = i;
+			}
+
+            primary_variable[i] = (1. - tFem_Ele_Std->pcs->m_num->ls_theta) *
+                                      tFem_Ele_Std->interpolate(nidx0, m_pcs) +
+                                  tFem_Ele_Std->pcs->m_num->ls_theta *
+                                      tFem_Ele_Std->interpolate(nidx1, m_pcs);
         }
         else if (mode == 2)  // Element average value
         {
             primary_variable[i] =
-                (1. - Fem_Ele_Std->pcs->m_num->ls_theta) *
-                    Fem_Ele_Std->elemnt_average(nidx0, m_pcs) +
-                Fem_Ele_Std->pcs->m_num->ls_theta *
-                    Fem_Ele_Std->elemnt_average(nidx1, m_pcs);
-            primary_variable_t0[i] = Fem_Ele_Std->elemnt_average(nidx0, m_pcs);
-            primary_variable_t1[i] = Fem_Ele_Std->elemnt_average(nidx1, m_pcs);
+                (1. - tFem_Ele_Std->pcs->m_num->ls_theta) *
+                    tFem_Ele_Std->elemnt_average(nidx0, m_pcs) +
+                tFem_Ele_Std->pcs->m_num->ls_theta *
+                    tFem_Ele_Std->elemnt_average(nidx1, m_pcs);
+            primary_variable_t0[i] = tFem_Ele_Std->elemnt_average(nidx0, m_pcs);
+            primary_variable_t1[i] = tFem_Ele_Std->elemnt_average(nidx1, m_pcs);
         }
         else if (mode == 3)  // NB, just testing
         {
-            primary_variable[i] = Fem_Ele_Std->interpolate(nidx0, m_pcs);
+            primary_variable[i] = tFem_Ele_Std->interpolate(nidx0, m_pcs);
         }
         else
         {
@@ -1088,6 +1110,14 @@ void CFluidProperties::CalPrimaryVariable(
             }
         }
     }
+	for (int i = 0; i < (int)pcs_name_vector.size(); i++)//CMCD JULY 2021
+	{
+		if (pcs_name_vector[i].compare("TEMPERATURE1") == 0) {
+			m_pcs = PCSGet(pcs_name_vector[i], true);
+			if (m_pcs->getTemperatureUnit() == FiniteElement::CELSIUS)
+				primary_variable[i] -= PhysicalConstant::CelsiusZeroInKelvin;
+		}
+	}
 }
 
 ////////////////////////////////////////////////////////////////////////////
@@ -1301,7 +1331,7 @@ double CFluidProperties::Density(double* variables)
         switch (density_model)
         {
             case 0:  // rho = f(x)
-                density = GetCurveValue(density_curve_number, 0,
+				density = GetCurveValue(density_curve_number, 0,
                                         primary_variable[0], &gueltig);
                 break;
             case 1:  // rho = const
@@ -1316,7 +1346,7 @@ double CFluidProperties::Density(double* variables)
                 density =
                     rho_0 *
                     (1. + drho_dC * (max(primary_variable[0], 0.0) - C_0));
-                break;
+				break;
             case 4:  // rho(T) = rho_0*(1+beta_T*(T-T_0))
                 density =
                     rho_0 *
@@ -2052,8 +2082,8 @@ double CFluidProperties::LiquidViscosity_Marsily_1986(double T)
     //		There is no benchmark for this, so nobody noticed...
     // my = 2.285e-5 + 1.01e-3 * log(T);
 
-    if (T > 0)
-        return A + B * log10(T);  // T in Celsius needed
+    if ((T - TemperatureUnitOffset())> 0)
+        return A + B * log10((T- TemperatureUnitOffset()));  // T in Celsius needed->CMCD March 2021 include temperature unit offset to give Celcius
     else
         return 0.001758784;
 }
@@ -2428,6 +2458,7 @@ double MFPCalcFluidsHeatCapacity(CFiniteElementStd* assem)
     {
         heat_capacity_fluids = assem->FluidProp->Density() *
                                assem->FluidProp->SpecificHeatCapacity();
+		//heat_capacity_fluids = 1000 * assem->FluidProp->SpecificHeatCapacity();//CMCD ERROR CHECK
 
         if (m_pcs && m_pcs->type != 1)  // neither liquid nor ground water flow
         {

@@ -925,7 +925,8 @@ void CFEMesh::ConstructGrid()
     for (size_t e = 0; e < e_size; e++)
         ele_vector[e]->ComputeGravityCenter();  // NW
     //----------------------------------------------------------------------
-
+	for (size_t e = 0; e < e_size; e++)
+		ele_vector[e]->SetElemPartOfMeshCoordFlag(coordinate_system);  // CMCD 2020
     // TEST WW
     // For sparse matrix
     ConnectedNodes(false);
@@ -1861,16 +1862,23 @@ void CFEMesh::GetNODOnSFC(const GEOLIB::Surface* sfc,
     const size_t nodes_in_usage((size_t)NodesInUsage());
     for (size_t j(0); j < nodes_in_usage; j++)
     {
+        if (j == 3121)
+        {
+            j = j;
+        }
         // Multiplicator * 0.375 should only be used if _search_length was
         // calculated automatically.
         if (sfc->isPntInBV((nod_vector[j])->getData(), _search_length))
         {
-            if (sfc->isPntInSfc((nod_vector[j])->getData(), _search_length))
+            //if (sfc->isPntInSfc((nod_vector[j])->getData(), _search_length)) //CMCD Surfae nodes outside of surface area being accessed. 
+            if (sfc->CheckPntInSfc((nod_vector[j])->getData(), _search_length))
             {
                 msh_nod_vector.push_back(nod_vector[j]->GetIndex());
             }
         }
     }
+    int temp;
+    temp = temp;
 #endif
 
 #ifdef TIME_MEASUREMENT

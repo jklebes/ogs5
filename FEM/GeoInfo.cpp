@@ -36,6 +36,8 @@ std::string GeoInfo::getGeoTypeAsString() const
     {
         case GEOLIB::POINT:
             return "POINT";
+		case GEOLIB::ELEMENT:
+			return "ELEMENT";
         case GEOLIB::POLYLINE:
             return "POLYLINE";
         case GEOLIB::SURFACE:

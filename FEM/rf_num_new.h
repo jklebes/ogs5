@@ -105,6 +105,7 @@ public:
     int fct_method;                    // NW
     unsigned int fct_prelimiter_type;  // NW
     double fct_const_alpha;            // NW
+	bool analytical;
     // Deformation
     int GravityProfile;
     // LAGRANGE method //OK

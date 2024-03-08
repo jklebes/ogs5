@@ -55,6 +55,33 @@ bool GeoIO::readGeoInfo(GeoInfo* geo_info, std::istream& in_str,
         exit(1);
     }
 
+	/*else if (geo_type_name.find("ELEMENT") != std::string::npos)
+	{
+		geo_info->setGeoType(GEOLIB::ELEMENT);
+		strstream >> geo_name;
+		const GEOLIB::Element* ele = int(geo_name.c_str());
+			geo_obj.getPolylineVecObj(unique_geo_name);
+		if (ply_vec)
+		{
+			const GEOLIB::Polyline* ply(ply_vec->getElementByName(geo_name));
+			if (ply == NULL)
+			{
+				std::cerr << "error in GeoIO::readGeoInfo: polyline name \""
+					<< geo_name << "\" not found!"
+					<< "\n";
+				exit(1);
+			}
+			geo_info->setGeoObj(ply);
+			return true;
+		}
+
+		std::cerr << "Error in GeoIO::readGeoInfo: polyline vector not found!"
+			<< "\n";
+		exit(1);
+	}*/
+
+
+
     else if (geo_type_name.find("POLYLINE") != std::string::npos)
     {
         geo_info->setGeoType(GEOLIB::POLYLINE);

@@ -89,6 +89,7 @@ public:
      * @return true, if the point is into the projected triangle
      */
     bool containsPoint2D(const double* pnt) const;
+    bool containsPointAreaCheck(const double* pnt, double eps) const; //CMCD Check point in triangle not working for simple evaluation.
     void calculateNormal();
     double const* getNormal() const { return _normal_vector; }
 

@@ -3052,6 +3052,9 @@ void CRFProcessDeformation::UpdateStress()
     for (i = 0; i < (long)m_msh->ele_vector.size(); i++)
     {
         elem = m_msh->ele_vector[i];
+		if (i == 2151) {
+			i = i;
+		}
         if (elem->GetMark())  // Marked for use
         {
             elem->SetOrder(true);

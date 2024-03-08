@@ -355,6 +355,7 @@ CRFProcess::CRFProcess(void)
     non_linear = false;                   // OK/CMCD
     cal_integration_point_value = false;  // WW
     continuum = 0;
+	YDEPTH = false;//CMCD
     // adaption = false; JOD removed
     compute_domain_face_normal = false;  // WW
     use_velocities_for_transport = false;
@@ -822,10 +823,13 @@ void CRFProcess::Create()
             eqs = m_pcs->eqs;
         else
         {
-            eqs = CreateLinearSolver(m_num->ls_storage_method,
-                                     m_msh->GetNodesNumber(false) * DOF);
-            InitializeLinearSolver(eqs, m_num);
-            PCS_Solver.push_back(eqs);
+			if (!m_num->analytical) { //CMCD 2020
+				eqs = CreateLinearSolver(m_num->ls_storage_method,
+					m_msh->GetNodesNumber(false) * DOF);
+				InitializeLinearSolver(eqs, m_num);
+				PCS_Solver.push_back(eqs);
+			}
+			else eqs = NULL; //CMCD 2020
         }
         size_unknowns = eqs->dim;  // WW
     }
@@ -947,6 +951,7 @@ void CRFProcess::Create()
         // PCH
         ScreenMessage("Reloading the primary variables...\n");
         ReadSolution();  // WW
+		SetIC();         //CMCD Necessary to set subdomains but also use solution values 2020
     }
 
     if (_init_domain_data_type == FiniteElement::NO_IO ||
@@ -1373,6 +1378,10 @@ void CRFProcess::WriteSolution()
 
     int j;
     int* idx(new int[2 * pcs_number_of_primary_nvals]);
+
+	//CMCD Fixed problem with working in Celcius and using a reload.
+	const int temerature_var_id = GetNodeValueIndex("TEMPERATURE1");
+	
     for (j = 0; j < pcs_number_of_primary_nvals; j++)
     {
         idx[j] = GetNodeValueIndex(pcs_primary_function_name[j]);
@@ -1380,8 +1389,11 @@ void CRFProcess::WriteSolution()
     }
     for (size_t i = 0; i < m_msh->GetNodesNumber(false); i++)
     {
-        for (j = 0; j < 2 * pcs_number_of_primary_nvals; j++)
-            os << GetNodeValue(i, idx[j]) << "  ";
+		for (j = 0; j < 2 * pcs_number_of_primary_nvals; j++) {
+			if ((_temp_unit == FiniteElement::CELSIUS) && ((temerature_var_id == j)||(temerature_var_id+1==j)))
+					os << GetNodeValue(i, idx[j])-PhysicalConstant::CelsiusZeroInKelvin << "  ";
+			else os << GetNodeValue(i, idx[j]) << "  ";
+		}
         os << "\n";
     }
     os.close();
@@ -2063,6 +2075,12 @@ std::ios::pos_type CRFProcess::Read(std::ifstream* pcs_file)
             pcs_file->ignore(MAX_ZEILE, '\n');
             continue;
         }
+		// subkeyword found
+		if (line_string.find("$LIQUID_FLOW_YDEPTH") != string::npos)//CMCD
+		{
+			YDEPTH = true;
+			continue;
+		}
         //....................................................................
         // subkeyword found
         if (line_string.find("$APP_TYPE") != string::npos)
@@ -2666,6 +2684,11 @@ void CRFProcess::Config(void)
         type = 1415;
         ConfigTES();
     }
+	if (this->getProcessType() == FiniteElement::BIOLOGICAL)  // 24/06/2020 CMCD
+	{
+		type = -1;
+		ConfigBiological();
+	}
 }
 
 /**************************************************************************
@@ -2688,6 +2711,41 @@ void CRFProcess::ConfigLiquidFlow()
 
     // Output material parameters
     configMaterialParameters();
+}
+/**************************************************************************
+FEMLib-Method:
+Task:
+Programing:
+2020 CMCD 
+**************************************************************************/
+void CRFProcess::ConfigBiological()
+{
+	pcs_num_name[0] = "Bacteria";
+    pcs_sol_name = "Biological";
+	// NOD values
+	pcs_number_of_primary_nvals = 1;
+	pcs_primary_function_name[0] = "Bacteria_mass";
+	pcs_primary_function_unit[0] = "kg";
+	// ELE values
+	pcs_number_of_evals = 4;
+	pcs_eval_name[0] = "Bacteria_volume";
+	pcs_eval_unit[0] = "m3";
+	
+	pcs_eval_name[1] = "Bacteria_metabolism";
+	pcs_eval_unit[1] = "moles/l";
+
+	pcs_eval_name[2] = "Dead_metabolites";//Equivalent numbers of cells which have died
+	pcs_eval_unit[2] = "moles/l";
+
+	pcs_eval_name[3] = "Initial_living_metabolites";//Equivalent numbers of cells at which the next time step starts, N0 at t+dt
+	pcs_eval_unit[3] = "moles/l";
+
+//----------------------------------------------------------------------
+// Secondary variables
+	pcs_number_of_secondary_nvals = 0;
+// WW / TF
+								  // Output material parameters
+	configMaterialParameters();
 }
 
 /**************************************************************************
@@ -2756,6 +2814,10 @@ void CRFProcess::ConfigGroundwaterFlow()
     pcs_secondary_function_unit[pcs_number_of_secondary_nvals] = "m/s";
     pcs_secondary_function_timelevel[pcs_number_of_secondary_nvals] = 1;
     pcs_number_of_secondary_nvals++;  // WW
+    pcs_secondary_function_name[pcs_number_of_secondary_nvals] = "MATERIAL_GROUP";
+    pcs_secondary_function_unit[pcs_number_of_secondary_nvals] = "";
+    pcs_secondary_function_timelevel[pcs_number_of_secondary_nvals] = 1;
+    pcs_number_of_secondary_nvals++;  // CMCD for node output Anas Feb 2024
     //----------------------------------------------------------------------
     // WW / TF
     // Output material parameters
@@ -4163,6 +4225,10 @@ void CRFProcess::Def_Variable_LiquidFlow()
         pcs_secondary_function_timelevel[pcs_number_of_secondary_nvals] = 1;
         pcs_number_of_secondary_nvals++;  // WX 08.2011
     }
+    pcs_secondary_function_name[pcs_number_of_secondary_nvals] = "MATERIAL_GROUP";
+    pcs_secondary_function_unit[pcs_number_of_secondary_nvals] = "";
+    pcs_secondary_function_timelevel[pcs_number_of_secondary_nvals] = 1;
+    pcs_number_of_secondary_nvals++;  // CMCD for node output Anas Feb 2024
 
     // 1.3 elemental variables
     // pcs_number_of_evals = 0;
@@ -4187,7 +4253,15 @@ void CRFProcess::Def_Variable_LiquidFlow()
                          // permeability
     pcs_eval_unit[pcs_number_of_evals] = "m2";
     pcs_number_of_evals++;
-
+	pcs_eval_name[pcs_number_of_evals] = "BIOMASS";  // CMCD 2020 bug growth during H storage
+	pcs_eval_unit[pcs_number_of_evals] = "m3";
+	pcs_number_of_evals++;
+    pcs_eval_name[pcs_number_of_evals] = "INITIAL_POROSITY";  // CMCD 2020 bug growth during H storage
+    pcs_eval_unit[pcs_number_of_evals] = "m3";
+    pcs_number_of_evals++;
+    pcs_eval_name[pcs_number_of_evals] = "INITIAL_PERMEABILITY";  // CMCD 2020 bug growth during H storage
+    pcs_eval_unit[pcs_number_of_evals] = "m3";
+    pcs_number_of_evals++;
     // WTP: needed?
     // CB_merge_0513 ?? why only for eclipse??
     // if(simulator.compare("ECLIPSE") == 0) //02.2013. WW
@@ -6841,6 +6915,26 @@ void CRFProcess::IncorporateBoundaryConditions(const int rank)
             {
                 bc_value = evaluteSwitchBC(*m_bc, *m_bc_node, time_fac, fac);
             }
+
+			//Special gradient reapplication
+			if (m_bc_node->node_gradient_switch)
+			{
+				int onZ = m_msh->GetCoordinateFlag();// % 10;
+				double node_depth;
+				double ref_value = time_fac;//curve value
+				double gradient = m_bc_node->m_node_value_gradient_ref_depth_gradient;
+				double ref_depth = m_bc_node->m_node_value_gradient_ref_depth;
+				if (onZ == 10)  // 1D
+					node_depth = m_msh->nod_vector[m_bc_node->geo_node_number]->getData()[0];
+				if (onZ == 21)  // 2D XY
+					node_depth = m_msh->nod_vector[m_bc_node->geo_node_number]->getData()[1];
+				if (onZ == 22)  // 2D XZ
+					node_depth = m_msh->nod_vector[m_bc_node->geo_node_number]->getData()[2];
+				if (onZ == 32)  // 3D XYZ
+					node_depth = m_msh->nod_vector[m_bc_node->geo_node_number]->getData()[2];
+				bc_value = gradient * (ref_depth - node_depth) + ref_value;
+				time_fac = 1.0;
+			}
             //----------------------------------------------------------------
             // MSH
             /// 16.08.2010. WW
@@ -10912,10 +11006,15 @@ void CRFProcess::CalcSecondaryVariablesLiquidFlow()
         // get pressure
         var[0] = this->GetNodeValue(i, this->GetNodeValueIndex("PRESSURE1"));
         // get temperature
-        if (heattransport)
-            var[1] = m_pcs->GetNodeValue(
-                i, m_pcs->GetNodeValueIndex("TEMPERATURE1"));
-        // Set salinity
+		if (heattransport) {
+			var[1] = m_pcs->GetNodeValue(
+				i, m_pcs->GetNodeValueIndex("TEMPERATURE1"));
+			if (m_pcs->getTemperatureUnit() == FiniteElement::CELSIUS)//CMCD July 2021 Unit in CELCIUS then desnity in celcius
+				var[1] -= PhysicalConstant::CelsiusZeroInKelvin;
+		}
+
+
+        // Set salinity//density
         var[2] = 0.0;
         dens = m_mfp->Density(var);
         // Assigning the secondary variable
@@ -11452,7 +11551,12 @@ void CRFProcess::SetCPL()
         (cpl_type_name.compare("PARTITIONED") == 0))
         return;
     //----------------------------------------------------------------------
-    // PCS CPL
+    //Linkage over source terms, the patch area is necessary
+	if (cpl_type_name.compare("SOURCE_TERM") == 0)
+		m_msh->SetNODPatchAreas();
+		return;
+
+	// PCS CPL
     CRFProcess* m_pcs_cpl = PCSGet(cpl_type_name);
     if (!m_pcs_cpl)
     {

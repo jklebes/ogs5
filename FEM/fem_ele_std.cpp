@@ -1579,7 +1579,7 @@ double CFiniteElementStd::CalCoefMass()
             double drho_dp_rho = 0.0;
             // get drho/dp/rho from material model or direct input
             const double rho_val = FluidProp->Density();
-            if (FluidProp->compressibility_model_pressure > 0)
+			if (FluidProp->compressibility_model_pressure > 0)
             {
                 double arg[2];
                 arg[0] = interpolate(NodalVal1);   //   p
@@ -1685,7 +1685,7 @@ double CFiniteElementStd::CalCoefMass()
         case EPT_HEAT_TRANSPORT:  // Heat transport
             TG = interpolate(NodalVal1);
             val = MediaProp->HeatCapacity(Index, pcs->m_num->ls_theta, this);
-            val /= time_unit_factor;
+			val /= time_unit_factor;
             break;
         //....................................................................
         case EPT_MASS_TRANSPORT:  // Mass transport //SB4200
@@ -3624,7 +3624,8 @@ double CFiniteElementStd::CalCoefAdvection()
                       FluidProp->Density(dens_arg);
             }
             else
-                val = FluidProp->SpecificHeatCapacity() * FluidProp->Density();
+            val = FluidProp->SpecificHeatCapacity() * FluidProp->Density();
+			//val = FluidProp->SpecificHeatCapacity() * 1000;CMCD ERROR CHECK
             break;
         case EPT_MASS_TRANSPORT:  // Mass transport //SB4200
             val =
@@ -3885,6 +3886,11 @@ void CFiniteElementStd::CalcMass()
 #endif
     // Test Output
     // Mass->Write();
+	/*if (PcsType == EPT_HEAT_TRANSPORT) {
+		if (Index == 63) {
+			Mass->Write();
+		}
+	}*/
 }
 /**************************************************************************
    FEMLib-Method:
@@ -5052,7 +5058,11 @@ void CFiniteElementStd::CalcLaplace()
             }
         }
     }  //	//TEST OUTPUT
-       // Laplace->Write();
+	//if (PcsType == EPT_HEAT_TRANSPORT) {
+		//if (Index == 63) {
+			//Laplace->Write();
+		//}
+	//}
 }
 /***************************************************************************
    FEMLib-Method:
@@ -5847,10 +5857,11 @@ void CFiniteElementStd::CalcStrainCoupling(int phase)
 void CFiniteElementStd::Assemble_Gravity()
 {
     // int Index = MeshElement->GetIndex();
-    if ((coordinate_system) % 10 != 2)  // NW: exclude (!axisymmetry)
-
-        // 27.2.2007 WW (*GravityMatrix) = 0.0;
-        return;
+	if (!(PcsType == EPT_LIQUID_FLOW) && (pcs->YDEPTH)) {
+		if ((coordinate_system) % 10 != 2)  // NW: exclude (!axisymmetry)
+			// 27.2.2007 WW (*GravityMatrix) = 0.0;
+			return;
+	}
     int i, ii;
     // ---- Gauss integral
     int gp_r = 0, gp_s = 0, gp_t;
@@ -5911,7 +5922,7 @@ void CFiniteElementStd::Assemble_Gravity()
         else
         {
             rho = FluidProp->Density();
-        }
+		}
         if (gravity_constant < MKleinsteZahl)  // HEAD version
             rho = 1.0;
         else if (HEAD_Flag)
@@ -6647,7 +6658,7 @@ void CFiniteElementStd::Cal_Velocity()
         if ((PcsType == EPT_TWOPHASE_FLOW) && (pcs->pcs_type_number == 1))
             flag_cpl_pcs = false;
         // Velocity
-        for (size_t i = 0; i < dim; i++)
+        for (size_t i = 0; i < dim; i++)//Here not accounting for xz coordinates. //CMCD2020
         {
             vel[i] = 0.0;
             for (int j = 0; j < nnodes; j++)
@@ -6678,7 +6689,7 @@ void CFiniteElementStd::Cal_Velocity()
         // NW
         if (PcsType != EPT_HEAT_TRANSPORT && PcsType != EPT_MASS_TRANSPORT)
         {  // JOD 2014-11-10
-            if (k == 2 && (!HEAD_Flag) && FluidProp->CheckGravityCalculation())
+            if ((k == 2 && (!HEAD_Flag) && FluidProp->CheckGravityCalculation())||(pcs->YDEPTH))//YDEPTH allowed CMCD
             {
                 if (PcsType == EPT_THERMAL_NONEQUILIBRIUM || PcsType == EPT_TES)
                 {
@@ -7608,7 +7619,12 @@ void CFiniteElementStd::AssembleRHS(int dimension)
         // seems to divide viscosity two times. Thus, wrong.
 
         fktG *= rho;
-        for (int i = 0; i < nnodes; i++)
+		
+		int gindex = 2;//CMCD edited to allow y to be depth
+		if (pcs->YDEPTH) gindex = 1;
+		else gindex = 2;
+        
+		for (int i = 0; i < nnodes; i++)
             for (int j = 0; j < nnodes; j++)
                 for (size_t k = 0; k < dim; k++)
                 {
@@ -7628,7 +7644,7 @@ void CFiniteElementStd::AssembleRHS(int dimension)
                                     // NW  dshapefct[dimension*nnodes+j] ->
                                     // dshapefct[k*nnodes+j]
                                     * mat[dim * dimension + k] * shapefct[i] *
-                                    MeshElement->nodes[j]->getData()[2];
+                                    MeshElement->nodes[j]->getData()[gindex];//CMCD edited to gindex
                 }
     }
 
@@ -7660,6 +7676,10 @@ void CFiniteElementStd::AssembleRHS(int dimension)
     if (checkZaxis && IsGroundwaterIntheProcesses == 0)
         for (int i = 0; i < nnodes; i++)
             NodalVal[i] -= NodalVal2[i];
+	
+	/*if (pcs->YDEPTH)
+	for (int i = 0; i < nnodes; i++)
+		NodalVal[i] -= NodalVal2[i];*/
 
     // Store the influence into the global vectors.
     m_pcs = PCSGet("FLUID_MOMENTUM");
@@ -8683,8 +8703,8 @@ void CFiniteElementStd::AssembleMixedHyperbolicParabolicEquation()
     }  // end: femFCTmode
        //----------------------------------------------------------------------
        // Debug output
-       /*
-          if(Index < 10){
+       
+         /* if(Index == 63){
           cout << " Element Number " << Index << "\n";
           cout << " Mass matrix" << "\n";
           Mass->Write();
@@ -8701,14 +8721,14 @@ void CFiniteElementStd::AssembleMixedHyperbolicParabolicEquation()
           cout << " Right matrix" << "\n";
           AuxMatrix1->Write();
           cout << "RHS: " << endl ;
-          for (i=0;i<nnodes; i++) cout << "| " << NodalVal[i] << " |" << "\n";
+          for (int i=0;i<nnodes; i++) cout << "| " << NodalVal[i] << " |" << "\n";
           cout << " initial concentrations" << "\n";
-          for (i=0;i<nnodes; i++) cout << "| " << NodalVal1[i] << " |" << "\n";
-          //	cout << " RHS vector: " << "\n";
-          //	for (i=0;i<nnodes; i++) cout << "| " <<    (double)(*RHS)(i+LocalShift)
+          for (int i=0;i<nnodes; i++) cout << "| " << NodalVal1[i] << " |" << "\n";
+         	cout << " RHS vector: " << "\n";
+          	for (int i=0;i<nnodes; i++) cout << "| " <<    (double)(*RHS)(i+LocalShift)
           << " |" << "\n";
-          }
-        */
+          }*/
+        
 }
 /**************************************************************************
    FEMLib-Method:

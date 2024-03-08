@@ -11,64 +11,159 @@
 #include "MshEditor.h"
 #include "PointWithID.h"
 #include "msh_mesh.h"
+#include "msh_edge.h"
 #include "GridAdapter.h"
+#include "AnalyticalGeometry.h"
 
 void MshEditor::getNodeAreas(const MeshLib::CFEMesh* mesh,
                              std::vector<double>& node_area_vec)
 {
     double total_area(0);
+	double node_patch_area(0);
+	double part_node_area(0);
+	double dA, dB, dC, dD;
+	int OP;
 
     // for each node, a vector containing all the element idget every element
     const size_t nNodes(mesh->nod_vector.size());
     for (size_t n = 0; n < nNodes; n++)
     {
-        double node_area(0);
-
+		part_node_area = 0.0;
+		node_patch_area = 0.0;
         std::vector<size_t> connected_elements(
             mesh->nod_vector[n]->getConnectedElementIDs());
+
+		GEOLIB::Point O(mesh->nod_vector[n]->getData());
 
         for (size_t i = 0; i < connected_elements.size(); i++)
         {
             MeshLib::CElem* Element(mesh->ele_vector[connected_elements[i]]);
+			MshElemType::type ElementType = Element->GetElementType();//CMCD 2020
 
-            // get nodes of this element
-            std::vector<MeshLib::CNode*> ElementNodes;
-            Element->GetNodes(ElementNodes);
+			if (ElementType == MshElemType::TRIANGLE) {
+				// get nodes of this element
+				std::vector<MeshLib::CNode*> ElementNodes;
+				Element->GetNodes(ElementNodes);
 
-            // get area of this Element
-            // first, get coordinates for each node
+				// get area of this Element
+				// first, get coordinates for each node
 
-            GEOLIB::Point A(ElementNodes[0]->getData());
-            GEOLIB::Point B(ElementNodes[1]->getData());
-            GEOLIB::Point C(ElementNodes[2]->getData());
+				GEOLIB::Point A(ElementNodes[0]->getData());
+				GEOLIB::Point B(ElementNodes[1]->getData());
+				GEOLIB::Point C(ElementNodes[2]->getData());
 
-            // distances of AB, BC, and AC
-            const double a = sqrt((A[0] - B[0]) * (A[0] - B[0]) +
-                                  (A[1] - B[1]) * (A[1] - B[1]) +
-                                  (A[2] - B[2]) * (A[2] - B[2]));
-            const double b = sqrt((C[0] - B[0]) * (C[0] - B[0]) +
-                                  (C[1] - B[1]) * (C[1] - B[1]) +
-                                  (C[2] - B[2]) * (C[2] - B[2]));
-            const double c2 = (A[0] - C[0]) * (A[0] - C[0]) +
-                              (A[1] - C[1]) * (A[1] - C[1]) +
-                              (A[2] - C[2]) * (A[2] - C[2]);
+				// distances of AB, BC, and AC
+				const double a = sqrt((A[0] - B[0]) * (A[0] - B[0]) +
+					(A[1] - B[1]) * (A[1] - B[1]) +
+					(A[2] - B[2]) * (A[2] - B[2]));
+				const double b = sqrt((C[0] - B[0]) * (C[0] - B[0]) +
+					(C[1] - B[1]) * (C[1] - B[1]) +
+					(C[2] - B[2]) * (C[2] - B[2]));
+				const double c2 = (A[0] - C[0]) * (A[0] - C[0]) +
+					(A[1] - C[1]) * (A[1] - C[1]) +
+					(A[2] - C[2]) * (A[2] - C[2]);
 
-            // angle AC-BC
-            const double cos_gamma = (c2 - a * a - b * b) / (-2 * a * b);
+				// angle AC-BC
+				const double cos_gamma = (c2 - a * a - b * b) / (-2 * a * b);
 
-            // Area of tri-element
-            const double Area = 0.5 * a * b * sin(acos(cos_gamma));
+				// Area of tri-element
+				part_node_area = 0.5 * a * b * sin(acos(cos_gamma));
 
-            node_area +=
-                Area / 3.0;  // the third part of the area of each connected
-                             // element adds up to the nodal area of n
-            total_area += Area / 3.0;
+				node_patch_area +=
+					part_node_area / 3.0;  // the third part of the area of each connected
+								 // element adds up to the nodal area of n
+			}
+			if (ElementType == MshElemType::QUAD) {
+				std::vector<int>node_ids;
+				std::vector<MeshLib::CNode*> ElementNodes;
+				Element->GetNodes(ElementNodes);
+
+				// get area of this Element
+				// first, get coordinates for each node
+				GEOLIB::Point A(ElementNodes[0]->getData());
+				GEOLIB::Point B(ElementNodes[1]->getData());
+				GEOLIB::Point C(ElementNodes[2]->getData());
+				GEOLIB::Point D(ElementNodes[3]->getData());
+						
+				dA = MathLib::calctwopointdistance(O,A);
+				dB = MathLib::calctwopointdistance(O,B);
+				dC = MathLib::calctwopointdistance(O,C);
+				dD = MathLib::calctwopointdistance(O,D);
+
+				if (dA < DBL_EPSILON) OP = 0;
+				if (dB < DBL_EPSILON) OP = 1;
+				if (dC < DBL_EPSILON) OP = 2;
+				if (dD < DBL_EPSILON) OP = 3;
+				node_ids.push_back(OP);
+
+
+				long Node_no1, Node_no2;
+
+				Math_Group::vec<MeshLib::CEdge*> ele_edges_vector(15);
+				Math_Group::vec<MeshLib::CNode*> edge_nodes(3);
+				MeshLib::CEdge* m_edg;
+						
+				Element->GetEdges(ele_edges_vector);
+				for (size_t j = 0; j < Element->GetEdgesNumber(); j++)
+				{
+					m_edg = ele_edges_vector[j];
+					m_edg->GetNodes(edge_nodes);
+					Node_no1 = edge_nodes[0]->GetIndex();
+					Node_no2 = edge_nodes[1]->GetIndex();
+
+					if (ElementNodes[OP] == edge_nodes[0]) {
+						if (edge_nodes[1] == ElementNodes[0]) {
+							node_ids.push_back(0);
+						}
+						if (edge_nodes[1] == ElementNodes[1]) {
+							node_ids.push_back(1);
+						}
+						if (edge_nodes[1] == ElementNodes[2]) {
+							node_ids.push_back(2);
+						}
+						if (edge_nodes[1] == ElementNodes[3]) {
+							node_ids.push_back(3);
+						}
+					}
+					if (ElementNodes[OP] == edge_nodes[1]) {
+						if (edge_nodes[0] == ElementNodes[0]) {
+							node_ids.push_back(0);
+						}
+						if (edge_nodes[0] == ElementNodes[1]) {
+							node_ids.push_back(1);
+						}
+						if (edge_nodes[0] == ElementNodes[2]) {
+							node_ids.push_back(2);
+						}
+						if (edge_nodes[0] == ElementNodes[3]) {
+							node_ids.push_back(3);
+						}
+					}
+
+				}
+
+				A = ElementNodes[OP]->getData();
+				B = ElementNodes[node_ids[1]]->getData();
+				C = ElementNodes[node_ids[2]]->getData();
+				double const* gravity_center(Element->GetGravityCenter());
+				
+				double c1 = MathLib::calcTriangleArea(A, B, gravity_center);
+				double c2 = MathLib::calcTriangleArea(A, C, gravity_center);
+				part_node_area = (c1 + c2)/2.0;
+				node_ids.clear();
+			}
+
+			//NEED TO DO SOMETHING SIMILAR FOR 3D VOLUMES
+			node_patch_area+= part_node_area;
+            //total_area += Area / 3.0;
         }
 
-        node_area_vec.push_back(node_area);
+        node_area_vec.push_back(node_patch_area);
+		node_patch_area = 0.0;
+
     }
 
-    std::cout << "Total surface Area: " << total_area << "\n";
+   // std::cout << "Total surface Area: " << total_area << "\n";
 }
 
 MeshLib::CFEMesh* MshEditor::removeMeshNodes(MeshLib::CFEMesh* mesh,

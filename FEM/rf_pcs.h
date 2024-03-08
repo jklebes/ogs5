@@ -567,6 +567,7 @@ public:
     TimType::type tim_type;
     const char* pcs_sol_name;
     std::string cpl_type_name;
+	bool YDEPTH;//CMCD allow Y axis to be assigned gravity in LIQUIDFLOW
     CNumerics* m_num;
     //
     bool selected;           // OK
@@ -621,6 +622,7 @@ public:
     void Config();
     void ConfigGroundwaterFlow();
     void ConfigLiquidFlow();
+	void ConfigBiological();
     void ConfigNonIsothermalFlow();
     void ConfigNonIsothermalFlowRichards();
     void ConfigMassTransport();

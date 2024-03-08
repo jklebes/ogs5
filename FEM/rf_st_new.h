@@ -302,6 +302,7 @@ private:  // TF, KR
     LinearFunctionData* dis_linear_f;  // 24.8.2011. WW
 
     bool analytical;                 // 2x?
+	bool analytical_biology;         //CMCD
     bool pressureBoundaryCondition;  // pressure load boundary condition
 
     size_t number_of_terms;
@@ -561,4 +562,7 @@ extern void GetNODValue(double& value, CNodeValue* cnodev, CSourceTerm* m_st);
 
 extern void GetNODHeatTransfer(double& value, CSourceTerm* st,
                                long geo_node);  // TN
+extern void GetNODFluidTransfer(double& value, CSourceTerm* st,
+	long geo_node);  // CMCD
+
 #endif

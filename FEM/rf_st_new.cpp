@@ -67,6 +67,7 @@ last modified
 #include "rf_mfp_new.h"
 #include "rf_node.h"
 #include "rfmat_cp.h"
+#include "rf_bio.h"
 
 // Base
 #include "quicksort.h"
@@ -122,6 +123,7 @@ CSourceTerm::CSourceTerm()
     geo_node_value = 0.0;
     nodes = NULL;        // OK
     analytical = false;  // CMCD
+	analytical_material_group = -1; //CMCD to fix call to assign domain nodes
     pressureBoundaryCondition = false;
     //  display_mode = false; //OK
     this->TimeInterpolation = 0;  // BG
@@ -591,12 +593,21 @@ void CSourceTerm::ReadDistributionType(std::ifstream* st_file)
     // outflux to surrounding depending on current value of solution at boundary
     // (e.g. heat transfer to surrounding dependent on current wall temperature)
     if (this->getProcessDistributionType() ==
-        FiniteElement::TRANSFER_SURROUNDING)
+        FiniteElement::CAUCHY)
     {
         in >> transfer_coefficient;
         in >> value_surrounding;
+		//distribute_volume_flux = true;//CMCD April 2023
         in.clear();
     }
+
+	if (this->getProcessDistributionType() == FiniteElement::BIO)
+	{
+		//analytical = true;
+		analytical_biology = true;
+		analytical_processes.push_back(
+			convertPrimaryVariableToString(getProcessPrimaryVariable()));
+	}
 
     //	if (dis_type_name.find("ANALYTICAL") != std::string::npos) {
     if (this->getProcessDistributionType() == FiniteElement::ANALYTICAL)
@@ -1516,7 +1527,8 @@ void CSourceTerm::EdgeIntegration(CFEMesh* msh,
                                   // not parallel to the coordinate axes
     bool Const = false;
     if (this->getProcessDistributionType() == FiniteElement::CONSTANT ||
-        this->getProcessDistributionType() == FiniteElement::CONSTANT_NEUMANN)
+        this->getProcessDistributionType() == FiniteElement::CONSTANT_NEUMANN||
+		this->getProcessDistributionType() == FiniteElement::CAUCHY)//CMCD April 2023
         Const = true;
 
     // CFEMesh* msh = m_pcs->m_msh;
@@ -1807,7 +1819,10 @@ void CSourceTerm::FaceIntegration(CRFProcess* pcs,
     bool Const = false;
     if (this->getProcessDistributionType() == FiniteElement::CONSTANT ||
         this->getProcessDistributionType() == FiniteElement::CONSTANT_NEUMANN ||
-        this->getProcessDistributionType() == FiniteElement::RECHARGE)  // MW
+        this->getProcessDistributionType() == FiniteElement::RECHARGE ||
+		this->getProcessDistributionType() == FiniteElement::TRANSFER_SURROUNDING||
+		this->getProcessDistributionType() == FiniteElement::CAUCHY
+		)// MW
         //	if (dis_type_name.find("CONSTANT") != std::string::npos)
         Const = true;
     //----------------------------------------------------------------------
@@ -2027,6 +2042,7 @@ void CSourceTerm::FaceIntegration(CRFProcess* pcs,
             {
                 e_node = elem->GetNode(nodesFace[k]);
                 nodesFVal[k] = node_value_vector[G2L[e_node->GetIndex()]];
+				//nodesFVal[k] = 1.0;//CMCD Mylene area check
             }
             fac = 1.0;
             // Not a surface face
@@ -3131,6 +3147,11 @@ void GetNODValue(double& value, CNodeValue* cnodev, CSourceTerm* st)
         // WW         value =
         // m_st_group->GetAnalyticalSolution(m_st,msh_node,(string)function_name[j]);
     }
+	if (cnodev->getProcessDistributionType() ==
+		FiniteElement::BIO) {
+		if (aktueller_zeitschritt==1) Update_sourceterm_exchangeareas();
+		value = GetBioSourceTerm(cnodev->msh_node_number);
+	}
 
     //	if (cnodev->node_distype == 5) // River Condition
     //	if (cnodev->getProcessDistributionType() == RIVER)
@@ -3169,7 +3190,14 @@ void GetNODValue(double& value, CNodeValue* cnodev, CSourceTerm* st)
         // st->getTransferCoefficient()*cnodev->node_area*(cnodev->node_value -
         // st->getValueSurrounding());
     }
-}
+
+	// CMCD - Test flux with fluid transfer coefficient
+	if (st->getProcessPrimaryVariable() == FiniteElement::HEAD &&
+		st->getProcessDistributionType() == FiniteElement::CAUCHY)
+	{
+		GetNODFluidTransfer(value, st, cnodev->geo_node_number);
+	}
+	}
 
 /**************************************************************************
  FEMLib-Method:
@@ -3232,6 +3260,45 @@ void GetNODHeatTransfer(double& value, CSourceTerm* st, long geo_node)
         value *= (1.0 - poro);
     else if (st->getProcessPrimaryVariable() == FiniteElement::TEMPERATURE)
         value *= poro;
+}
+
+/**************************************************************************
+FEMLib-Method:
+Task: Compute fluid flux for fluid (CAUCHY) transfer boundary condition
+Programing:
+30/03/2023 CMCD Implementation, based on GetNODHeatTransfer above
+last modified:
+**************************************************************************/
+void GetNODFluidTransfer(double& value, CSourceTerm* st, long geo_node)
+{
+	//Surface* m_sfc = NULL;
+	CRFProcess* m_pcs_this = NULL;
+	
+	// Get process type
+	m_pcs_this = PCSGet(convertProcessTypeToString(st->getProcessType()));
+	
+	// Get index of primary variable
+	long nidx1 = m_pcs_this->GetNodeValueIndex(convertPrimaryVariableToString(
+		st->getProcessPrimaryVariable())) +
+		1;
+
+	// Get current primary variable value at that node
+	double head = m_pcs_this->GetNodeValue(geo_node, nidx1);
+
+	// Find position of current node in st vectors
+	size_t i;
+	for (i = 0; i < st->get_node_value_vectorArea().size(); i++)
+	{
+		if (geo_node == st->st_node_ids[i])
+			break;
+	}
+	double flux_area = st->get_node_value_vectorArea()[i];
+
+	double lambda = st->getTransferCoefficient();
+	double surrounding = st->getValueSurrounding();
+
+	value = lambda * (surrounding - head);
+	value *= flux_area;
 }
 
 /**************************************************************************
@@ -3339,7 +3406,9 @@ void CSourceTermGroup::SetPNT(CRFProcess* pcs, CSourceTerm* st,
         }
     }
 
-    if (st->getProcessDistributionType() == FiniteElement::TRANSFER_SURROUNDING)
+    if (st->getProcessDistributionType() == FiniteElement::TRANSFER_SURROUNDING ||
+		st->getProcessDistributionType() == FiniteElement::CAUCHY
+		)
     {  // TN - Belegung mit Fl�chenelementen
         st->node_value_vectorArea.resize(1);
         st->node_value_vectorArea[0] = 1.0;
@@ -3504,14 +3573,18 @@ void CSourceTermGroup::SetDMN(CSourceTerm* m_st, const int ShiftInNodeVector)
     std::vector<long> dmn_nod_vector;
     std::vector<double> dmn_nod_val_vector;
     std::vector<long> dmn_nod_vector_cond;
-
+	if (m_st->analytical_material_group == -1)
+		GEOGetNodesInMaterialDomain(m_msh, stoi(m_st->geo_name),
+			dmn_nod_vector, false);
+	else
     GEOGetNodesInMaterialDomain(m_msh, m_st->analytical_material_group,
                                 dmn_nod_vector, false);
+
     size_t number_of_nodes(dmn_nod_vector.size());
     dmn_nod_val_vector.resize(number_of_nodes);
 
     for (size_t i = 0; i < number_of_nodes; i++)
-        dmn_nod_val_vector[i] = 0;
+        dmn_nod_val_vector[i] = m_st->geo_node_value;
 
     m_st->SetNodeValues(dmn_nod_vector, dmn_nod_vector_cond, dmn_nod_val_vector,
                         ShiftInNodeVector);
@@ -3582,8 +3655,16 @@ void CSourceTermGroup::SetSFC(CSourceTerm* m_st, const int ShiftInNodeVector)
             m_st->SetSurfaceNodeVectorConditional(sfc_nod_vector,
                                                   sfc_nod_vector_cond);
         //		m_st->SetDISType();
+		//CMCD use the sfc_nod_vector set to 1 to calcualte the flux area for each node and store in node area
+		//Otherwise sfc_nod_vector is not defined and this function is useless
+		sfc_nod_val_vector.resize(sfc_nod_vector.size());
+		for (int j = 0; j < sfc_nod_vector.size(); j++) {
+			sfc_nod_val_vector[j] = 1.0;
+		}
+
         SetSurfaceNodeValueVector(m_st, m_sfc, sfc_nod_vector,
                                   sfc_nod_val_vector);
+
 
         if (m_st->distribute_volume_flux)  // 5.3.07 JOD
             DistributeVolumeFlux(m_st, sfc_nod_vector, sfc_nod_val_vector);
@@ -3595,7 +3676,9 @@ void CSourceTermGroup::SetSFC(CSourceTerm* m_st, const int ShiftInNodeVector)
 
         m_st->st_node_ids.clear();
         m_st->st_node_ids.resize(sfc_nod_vector.size());
-        m_st->st_node_ids = sfc_nod_vector;
+        m_st->st_node_ids = sfc_nod_vector;//CMCD April 2023
+		m_st->node_value_vectorArea.resize(sfc_nod_vector.size()); //CMCD April 2023
+		m_st->node_value_vectorArea = sfc_nod_val_vector; // Here the areas are stored. Each surface node has a record of all the areas in the surface.
 
         if (m_st->isConstrainedST())
         {
@@ -4029,7 +4112,8 @@ void CSourceTermGroup::SetPolylineNodeValueVector(
         st->EdgeIntegration(m_msh, ply_nod_vector, st->node_value_vectorArea);
     }
 
-    if (distype == FiniteElement::TRANSFER_SURROUNDING)
+    if (distype == FiniteElement::TRANSFER_SURROUNDING ||
+		distype == FiniteElement::CAUCHY )//CMCD April 2023)
     {  // TN - Belegung mit Fl�chenelementen
         st->node_value_vectorArea.resize(number_of_nodes);
         for (size_t i = 0; i < number_of_nodes; i++)
@@ -4112,8 +4196,8 @@ void CSourceTermGroup::SetSurfaceNodeValueVector(
     long number_of_nodes = (long)sfc_nod_vector.size();
     sfc_nod_val_vector.resize(number_of_nodes);
 
-    for (long i = 0; i < number_of_nodes; i++)
-        sfc_nod_val_vector[i] = st->geo_node_value;
+    //for (long i = 0; i < number_of_nodes; i++)
+        //sfc_nod_val_vector[i] = st->geo_node_value;
     // KR & TF - case not used
     //	if (m_st->dis_type == 12) //To do. 4.10.06
     //		for (long i = 0; i < number_of_nodes; i++)
@@ -4162,7 +4246,9 @@ void CSourceTermGroup::SetSurfaceNodeValueVector(
     if (st->getProcessDistributionType() == FiniteElement::CONSTANT_NEUMANN ||
         st->getProcessDistributionType() == FiniteElement::LINEAR_NEUMANN ||
         st->getProcessDistributionType() == FiniteElement::GREEN_AMPT ||
-        st->getProcessDistributionType() == FiniteElement::RECHARGE)
+        st->getProcessDistributionType() == FiniteElement::RECHARGE ||
+		st->getProcessDistributionType() == FiniteElement::TRANSFER_SURROUNDING ||
+		st->getProcessDistributionType() == FiniteElement::CAUCHY)
     {
         if (m_msh->GetMaxElementDim() ==
             2)  // For all meshes with 1-D or 2-D elements
@@ -4276,6 +4362,7 @@ void CSourceTerm::SetSurfaceNodeVectorConditional(
  Task:
  Programing:
  11/2007 JOD
+ 11/2020 CMCD Remove domain overlap
  last modification:
  **************************************************************************/
 void CSourceTerm::SetNodeValues(const std::vector<long>& nodes,
@@ -4284,10 +4371,22 @@ void CSourceTerm::SetNodeValues(const std::vector<long>& nodes,
                                 int ShiftInNodeVector)
 {
     CNodeValue* m_nod_val = NULL;
-    size_t number_of_nodes(nodes.size());
+    size_t number_of_nodes(nodes.size());//Number to be added
+
+    long no_sourceterms = _pcs->st_node_value.size();//Exisiting source terms
+    long k;
+    bool exists = false;
 
     for (size_t i = 0; i < number_of_nodes; i++)
     {
+        exists = false;
+        for (k = 0; k < no_sourceterms; k++) {//Remove domain overlap, prefer first time found
+            if (_pcs->st_node_value[k]->geo_node_number == nodes[i]) {
+                exists = true;
+                k = no_sourceterms;
+            }
+        }
+        //if (exists) continue;//HERE IS THE TROUBLE DOMAIN OVERLAP ON A POLYLINE!!!DISPLACEMENT_X1 //Y1 different primary variables CMCD 25_03 COMMENTED OUT 
         m_nod_val = new CNodeValue();
         m_nod_val->msh_node_number = nodes[i] + ShiftInNodeVector;
         m_nod_val->geo_node_number = nodes[i];
@@ -4328,7 +4427,10 @@ void CSourceTerm::SetNodeValues(const std::vector<long>& nodes,
         // depth, normal depth, analytical
         if (getProcessDistributionType() == FiniteElement::CRITICALDEPTH ||
             getProcessDistributionType() == FiniteElement::NORMALDEPTH ||
-            getProcessDistributionType() == FiniteElement::ANALYTICAL)
+            getProcessDistributionType() == FiniteElement::ANALYTICAL ||
+			getProcessDistributionType() == FiniteElement::TRANSFER_SURROUNDING ||
+			getProcessDistributionType() == FiniteElement::CAUCHY
+			)
         {
             m_nod_val->node_value = node_value_vectorArea[i];
             // CMCD bugfix on 4.9.06

@@ -151,7 +151,8 @@ void COutput::CreateVTKInstance(void)
 }
 void COutput::init()
 {
-    if (getProcessType() == FiniteElement::INVALID_PROCESS)
+	//CMCD The constant failed pointer message really not necessary. 2021
+    /*if (getProcessType() == FiniteElement::INVALID_PROCESS) 
     {
         ScreenMessage("COutput::init(): could not initialize process "
                       " pointer (process type INVALID_PROCESS) and "
@@ -175,8 +176,8 @@ void COutput::init()
         else
             std::cerr << " failed"
                       << "\n";
-    }
-
+    }*/
+	std::cerr << " Linking mesh to output"<< "\n";
     m_msh = FEMGet(convertProcessTypeToString(getProcessType()));
 
     setInternalVarialbeNames(m_msh);  // NW
@@ -810,6 +811,12 @@ void COutput::WriteDOMDataTEC()
         tec_file_name2 += "_" + mrank_str;
         std::cout << "Tecplot filename: " << tec_file_name1+tec_file_name2  << "\n";
 #endif
+        //Check to see if Material Group is also being called. CMCD for ANAS Feb 2024
+        for (size_t i = 0; i < _nod_value_vector.size(); i++)
+        {
+            if (_nod_value_vector[i].find("MATERIAL_GROUP") != string::npos)
+                MapMaterialGroupforNodesOutput();
+        }
 
         // output of nodel values
         if (!_nod_value_vector.empty() || !mfp_value_vector.empty() )
@@ -1800,8 +1807,8 @@ void COutput::WriteELECellCenteredValuesTECData(fstream& tec_file, int e_type,
 #ifdef USE_TRANSPORT_FLUX
             gp_ele = ele_gp_value[i];
             tec_file << gp_ele->TransportFlux(0, 0) << " ";
-            streams[0] << gp_ele->TransportFlux(1, 0) << " ";
-            streams[1] << gp_ele->TransportFlux(2, 0) << " ";
+			*(streams[0]) << gp_ele->TransportFlux(1, 0) << " ";//CMCD 2020 correction
+			*(streams[1]) << gp_ele->TransportFlux(2, 0) << " ";
 #endif
         }
         for (size_t j = 0; j < ele_value_index_vector.size(); j++)
@@ -1843,7 +1850,8 @@ void COutput::WriteELECellCenteredValuesTECData(fstream& tec_file, int e_type,
 **************************************************************************/
 void COutput::WriteELEValuesTECData(fstream& tec_file)
 {
-    CRFProcess* m_pcs_2 = NULL;
+	vector<CRFProcess*>output_pcs;
+	CRFProcess* m_pcs_2 = NULL;
     if (_ele_value_vector.empty())
         return;
 
@@ -1869,11 +1877,12 @@ void COutput::WriteELEValuesTECData(fstream& tec_file)
         {
             m_pcs_2 = GetPCS_ELE(_ele_value_vector[j]);
             skip.push_back(true);
+			output_pcs.push_back(m_pcs_2);
         }
     }
     vector<int> ele_value_index_vector(no_ele_values);
     GetELEValuesIndexVector(ele_value_index_vector);
-
+	int pcscount = 0;
     MeshLib::CElem* m_ele = NULL;
     FiniteElement::ElementValue* gp_ele = NULL;
     for (size_t i = 0; i < m_msh->ele_vector.size(); i++)
@@ -1920,10 +1929,13 @@ void COutput::WriteELEValuesTECData(fstream& tec_file)
             tec_file << gp_ele->TransportFlux(2, 0) << " ";
 #endif
         }
+		pcscount = -1;
         for (size_t j = 0; j < ele_value_index_vector.size(); j++)
         {
             if (skip[j])  // CB: allow output of velocity AND other ele values
             {
+				pcscount++;
+				m_pcs_2 = output_pcs[pcscount];//included CMCD
                 tec_file << m_pcs_2->GetElementValue(i,
                                                      ele_value_index_vector[j])
                          << " ";
@@ -1960,6 +1972,7 @@ double COutput::NODWritePLYDataTEC(int number)
     int stress_i[6], strain_i[6];
     double ss[6];
     double val_n = 0.;  // WW
+	CNode *node = NULL;                   //CMCD
     // OK4704
     if ((_nod_value_vector.size() == 0) && (mfp_value_vector.size() == 0))
         return 0.0;
@@ -2140,6 +2153,7 @@ double COutput::NODWritePLYDataTEC(int number)
             tec_file << " p_(1st_Invariant) "
                      << " q_(2nd_Invariant)  "
                      << " Effective_Strain";
+		tec_file << " \"X\" \"Y\" \"Z\"";//CMCD GREAT
         tec_file << "\n";
     }
     //....................................................................
@@ -2290,6 +2304,11 @@ double COutput::NODWritePLYDataTEC(int number)
                            1)
                 << " ";  // NB: MFP output for all phases
 
+		node = m_msh->nod_vector[nodes_vector[j]];  // CMCD GREAT
+		const double *x = node->getData();//Add X Y Z at end of ply
+		for (size_t k = 0; k < 3; k++){
+			tec_file <<" "<< x[k] << " ";
+		}
         tec_file << "\n";
     }
     tec_file.close();  // kg44 close file
@@ -4315,6 +4334,10 @@ void COutput::CalculateTotalFlux(CFEMesh* msh, vector<long>& nodes_on_geo,
                                  vector<double>& node_value_vector_adv)
 {
     CRFProcess* m_pcs = PCSGet(getProcessType());
+	bool diffusive_only = false;//CMCD 2020
+	int coordiante_flag = msh->GetCoordinateFlag();
+
+
 
     if (!msh || !m_pcs)
     {
@@ -4340,11 +4363,16 @@ void COutput::CalculateTotalFlux(CFEMesh* msh, vector<long>& nodes_on_geo,
     CElem* elem = NULL;
     CElem* face = new CElem(1);
 
-    FiniteElement::CElement* fem_assembler =
-        m_pcs_flow->getLinearFEMAssembler();
-    assert(fem_assembler);
+	FiniteElement::CElement* fem_assembler; //CMCD 2020
+	if (!m_pcs_flow) diffusive_only = true;
+	if (!diffusive_only) {
+		fem_assembler = m_pcs_flow->getLinearFEMAssembler();
+		//FiniteElement::CElement* fem_assembler =
+			//m_pcs_flow->getLinearFEMAssembler();
+		assert(fem_assembler);
+	}else fem_assembler = m_pcs->getLinearFEMAssembler();
 
-    CNode* e_node = NULL;
+	CNode* e_node = NULL;
     CElem* e_nei = NULL;
     set<long> set_nodes_on_geo;
     vector<long> elements_at_geo;
@@ -4411,47 +4439,72 @@ void COutput::CalculateTotalFlux(CFEMesh* msh, vector<long>& nodes_on_geo,
             if (elem->GetDimension() == e_nei->GetDimension())
                 fac = 0.5;  // Not a surface face
             face->SetFace(elem, j);
+			face->SetElemPartOfMeshCoordFlag(msh->GetCoordinateFlag());// CMCD 2020 ensure xz flux in 2D mesh with 1D boundary
             face->SetOrder(msh->getOrder());
             face->FillTransformMatrix();
             face->ComputeVolume();
             face->SetNormalVector();  // to get it directly from TransformMatrix
             face->DirectNormalVector();
             fem_assembler->setOrder(msh->getOrder() + 1);
-            fem_assembler->ConfigElement(face, true);  // 2D fem
+			fem_assembler->ConfigElement(face, true);  // 2D fem
 
-            for (k = 0; k < nfn; k++)
-            {
-                e_node = elem->GetNode(nodesFace[k]);
-                flux[0] = m_pcs_flow->GetNodeValue(
-                    e_node->GetIndex(),
-                    m_pcs_flow->GetNodeValueIndex("VELOCITY_X1"));
-                flux[1] = m_pcs_flow->GetNodeValue(
-                    e_node->GetIndex(),
-                    m_pcs_flow->GetNodeValueIndex("VELOCITY_Y1"));
-                flux[2] = m_pcs_flow->GetNodeValue(
-                    e_node->GetIndex(),
-                    m_pcs_flow->GetNodeValueIndex("VELOCITY_Z1"));
-                nodesFVal[k] = PointProduction(
-                    flux, face->normal_vector);  // fabs(PointProduction(flux,
-                                                 // face->normal_vector));
+			if (!diffusive_only) {
+				for (k = 0; k < nfn; k++)
+				{
+					e_node = elem->GetNode(nodesFace[k]);
+					flux[0] = m_pcs_flow->GetNodeValue(
+						e_node->GetIndex(),
+						m_pcs_flow->GetNodeValueIndex("VELOCITY_X1"));
+					flux[1] = m_pcs_flow->GetNodeValue(
+						e_node->GetIndex(),
+						m_pcs_flow->GetNodeValueIndex("VELOCITY_Y1"));
+					flux[2] = m_pcs_flow->GetNodeValue(
+						e_node->GetIndex(),
+						m_pcs_flow->GetNodeValueIndex("VELOCITY_Z1"));
+					nodesFVal[k] = PointProduction(
+						flux, face->normal_vector);  // fabs(PointProduction(flux,
+													 // face->normal_vector));
 
-                if (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT)
-                    nodesFVal_adv[k] =
-                        nodesFVal[k] *
-                        m_pcs->GetNodeValue(e_node->GetIndex(), 1);
-                else if (m_pcs->getProcessType() ==
-                         FiniteElement::HEAT_TRANSPORT)  // first fluid property
-                                                         // for liquid
-                    nodesFVal_adv[k] =
-                        nodesFVal[k] *
-                        m_pcs->GetNodeValue(e_node->GetIndex(), 1) *
-                        mfp_vector[0]->SpecificHeatCapacity() *
-                        mfp_vector[0]->Density();
-            }
+					if (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT)
+						nodesFVal_adv[k] =
+						nodesFVal[k] *
+						m_pcs->GetNodeValue(e_node->GetIndex(), 1);
+					else if (m_pcs->getProcessType() ==
+						FiniteElement::HEAT_TRANSPORT)  // first fluid property
+														// for liquid
+						nodesFVal_adv[k] =
+						nodesFVal[k] *
+						m_pcs->GetNodeValue(e_node->GetIndex(), 1) *
+						mfp_vector[0]->SpecificHeatCapacity() *
+						mfp_vector[0]->Density();
+				}
+			}
+			else {//diffusive only CMCD 2020
+				FiniteElement::ElementValue* gp_ele = NULL;
+				gp_ele = ele_gp_value[elem->GetIndex()];
+				flux[0] = gp_ele->TransportFlux[0];
+				if (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT)
+					nodesFVal_adv[k] =
+					nodesFVal[k] *
+					m_pcs->GetNodeValue(e_node->GetIndex(), 1);
+				else if (m_pcs->getProcessType() ==
+					FiniteElement::HEAT_TRANSPORT)  // first fluid property
+													// for liquid
+					nodesFVal_adv[k] =
+					nodesFVal[k] *
+					m_pcs->GetNodeValue(e_node->GetIndex(), 1) *
+					mfp_vector[0]->SpecificHeatCapacity() *
+					mfp_vector[0]->Density();
+				for (k = 0; k < 3; k++) {
+					nodesFVal_adv[k] = 0.0;
+					nodesFVal[k];
+				}
+			}
+
             ///
             fem_assembler->FaceNormalFluxIntegration(
                 elements_at_geo[i], nodesFVal, nodesFVal_adv, nodesFace, face,
-                m_pcs, face->normal_vector);
+                m_pcs, face->normal_vector, diffusive_only);
             for (k = 0; k < nfn; k++)
             {
                 e_node = elem->GetNode(nodesFace[k]);
@@ -4606,45 +4659,131 @@ void COutput::NODWritePrimaryVariableList(double time_current)
                     if (m_sfc)
                         m_msh->GetNODOnSFC(m_sfc, nodes_vector);
 
-                    for (std::size_t i = 0; i < nodes_vector.size(); i++)
-                        tec_file << nodes_vector[i] << "        "
-                                 << m_pcs_out->GetNodeValue(nodes_vector[i], 1)
-                                 << "\n";
+for (std::size_t i = 0; i < nodes_vector.size(); i++)
+	tec_file << nodes_vector[i] << "        "
+	<< m_pcs_out->GetNodeValue(nodes_vector[i], 1)
+	<< "\n";
 
-                    cout << "Data output: "
-                         << convertProcessTypeToString(getProcessType())
-                         << " primary variables - SURFACE " << geo_name
-                         << " -  " << nodes_vector.size() << " nodes" << endl;
-                    break;
+cout << "Data output: "
+<< convertProcessTypeToString(getProcessType())
+<< " primary variables - SURFACE " << geo_name
+<< " -  " << nodes_vector.size() << " nodes" << endl;
+break;
                 case GEOLIB::POLYLINE:
 
-                    m_polyline = GEOGetPLYByName(geo_name);
-                    if (ply)
-                    {
-                        double min_edge_length(m_msh->getMinEdgeLength());
-                        m_msh->setMinEdgeLength(m_polyline->epsilon);
-                        m_msh->GetNODOnPLY(ply, nodes_vector);
-                        m_msh->setMinEdgeLength(min_edge_length);
-                    }
+					m_polyline = GEOGetPLYByName(geo_name);
+					if (ply)
+					{
+						double min_edge_length(m_msh->getMinEdgeLength());
+						m_msh->setMinEdgeLength(m_polyline->epsilon);
+						m_msh->GetNODOnPLY(ply, nodes_vector);
+						m_msh->setMinEdgeLength(min_edge_length);
+					}
 
-                    for (std::size_t i = 0; i < nodes_vector.size(); i++)
-                        tec_file << nodes_vector[i] << "        "
-                                 << m_pcs_out->GetNodeValue(nodes_vector[i], 1)
-                                 << "\n";
+					for (std::size_t i = 0; i < nodes_vector.size(); i++)
+						tec_file << nodes_vector[i] << "        "
+						<< m_pcs_out->GetNodeValue(nodes_vector[i], 1)
+						<< "\n";
 
-                    cout << "Data output: "
-                         << convertProcessTypeToString(getProcessType())
-                         << " primary variables - POLYLINE " << geo_name
-                         << " - " << nodes_vector.size() << " nodes" << endl;
-                    break;
-                default:
-                    break;
-            }
-            //////////////
-            tec_file << "#STOP";
-            tec_file.close();
-        }
+					cout << "Data output: "
+						<< convertProcessTypeToString(getProcessType())
+						<< " primary variables - POLYLINE " << geo_name
+						<< " - " << nodes_vector.size() << " nodes" << endl;
+					break;
+				default:
+					break;
+			}
+			//////////////
+			tec_file << "#STOP";
+			tec_file.close();
+		}
 }
+/**************************************************************************
+FEMLib-Method:
+Task:   Calcualte the total amount of energy in each material group at a
+particular time step
+Use:
+Programing:
+2020 CMCD Implementation
+**************************************************************************/
+void COutput::ELEWriteMaterialGroupEnergy(double time_current, int time_step_number)
+{
+	if ((time_current == 0) && (time_step_number == 0)) return;//1st step interpretation causing problems in reload. CMCD 25_01_2022 fix
+	string tec_file_name = file_base_name+" ENERGY_PER_MATERIALGROUP.txt";
+	
+	MeshLib::CElem* elem = NULL;
+	Math_Group::vec<MeshLib::CNode*> Nodes(8);
+	int no_material_groups = m_msh->max_mmp_groups;
+	int n_nodes;
+	std::vector<double>energy;
+	double T_ave;
+	CRFProcess* m_pcs = PCSGet(getProcessType());
+	int idx = m_pcs->GetNodeValueIndex("TEMPERATURE1");
+	double node_value;
+	int vec_it = 0;
+	double fact_solid;
+	double fact_fluid;
+	double Element_energy;
+	int no_pcs = pcs_vector.size();//Only one process if no fluid flow.
+	//if (isFlowProcess(m_pcs->getProcessType()));For inclusion of advective part later
+
+	for (size_t i = 0; i < no_material_groups; i++)
+		energy.push_back(0.0);
+
+	for (size_t i = 0; i < m_msh->ele_vector.size(); i++)
+	{
+		T_ave = 0.0;
+		fact_solid = 1.0;
+		fact_fluid = 1.0;
+		elem = m_msh->ele_vector[i];
+		vec_it = elem->GetPatchIndex();
+		elem->GetNodes(Nodes);
+		n_nodes = elem->GetNodesNumber(false);
+		for (long j = 0; j < n_nodes; j++)
+			T_ave += m_pcs->GetNodeValue(Nodes[j]->GetIndex(), idx);
+		T_ave /= (double)n_nodes;
+
+		if (no_pcs > 1) {//Fluid and solid
+			fact_fluid *= mfp_vector[0]->SpecificHeatCapacity();
+			fact_fluid *= mfp_vector[0]->Density();
+			fact_fluid *= mmp_vector[vec_it]->Porosity(i, 1.0);
+
+			fact_solid *= (1.0 - mmp_vector[vec_it]->Porosity(i, 1.0));
+			fact_solid *= msp_vector[vec_it]->Heat_Capacity();
+			fact_solid *= msp_vector[vec_it]->Density();
+		}
+		else {//One phase only, no distinction between solid or liquid
+			fact_solid *= msp_vector[vec_it]->Heat_Capacity();
+			fact_solid *= msp_vector[vec_it]->Density();
+			fact_fluid = 0.0;
+		}
+		Element_energy = T_ave * (fact_solid + fact_fluid) * elem->GetVolume();
+		if ((elem->GetElementType() == MshElemType::QUAD) || (elem->GetElementType() == MshElemType::TRIANGLE)) {
+			double c = elem->GetFluxArea();
+			Element_energy *= c;
+		}
+		energy[vec_it] += Element_energy;
+	}
+
+//File Handelling
+	if (time_step_number == 0)
+	{
+		remove(tec_file_name.c_str());
+	}
+	fstream tec_file(tec_file_name.data(), ios::app | ios::out);
+	tec_file.setf(ios::scientific, ios::floatfield);
+	tec_file.precision(12);
+	
+	if (!tec_file.good())
+		return;
+	tec_file.seekg(0L, ios::beg);
+	tec_file << "Time " << aktuelle_zeit << endl;
+	tec_file << "Material_Group" <<" "<<"Energy_J_(Using Kelvin)" << endl;
+		for (size_t i = 0; i < no_material_groups; i++)
+			tec_file << i <<" "<< energy[i] << endl;
+	tec_file << endl;
+}
+
 
 /**************************************************************************
 FEMLib-Method:
@@ -4688,10 +4827,12 @@ void COutput::NODWriteTotalFlux(double time_current, int time_step_number)
     if (time_step_number == 0)
     {
         tec_file << "TIME                   ";
-        if (m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT)
+        if ((m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT)&&(pcs_vector.size()>1))
             tec_file << "FICK FLUX              ADVECTION FLUX";
         else if (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT)
             tec_file << "FOURIER FLUX           ADVECTION FLUX";
+		else if ((m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT) && (pcs_vector.size()==1))
+		tec_file << "FACE NORMAL FICK FLUX (J/s)   TOTAL FICK FLUX (J/s)";
         else
             tec_file << "DARCY FLUX";
 
@@ -4812,4 +4953,47 @@ void COutput::SetTotalFluxNodesDOM(std::vector<long>& nodes_vector)
 void COutput::setFileBaseName(const std::string& fn)
 {
     file_base_name = pathJoin(defaultOutputPath, pathBasename(fn));
+}
+
+/**************************************************************************
+FEMLib-Method:
+Task:Maps material groups to a node output
+Use:For postprocessing using node file output
+Programing:
+02/2024 CMCD Implementation
+**************************************************************************/
+void COutput::MapMaterialGroupforNodesOutput()
+{
+    MeshLib::CNode* m_node = NULL;
+    MeshLib::CElem* m_ele = NULL;
+    int MaterialGroup;
+    int numberconnectedelements;
+    int nidx;
+    int power;
+    int new_mg;
+    m_pcs = PCSGet("MATERIAL_GROUP", true);  // AB SB
+    nidx = m_pcs->GetNodeValueIndex("MATERIAL_GROUP");
+    for (long i = 0; i < (long)m_msh->nod_vector.size(); i++)
+    {
+        if (i == 75)
+        {
+            int temp = 0;
+        }
+        m_node = m_msh->nod_vector[i];//get node
+        numberconnectedelements = m_node->getConnectedElementIDs().size();
+        MaterialGroup = 0;
+        if (numberconnectedelements > 0)
+        {
+            MaterialGroup = pow(10, numberconnectedelements);
+            for (int j = 0; j < numberconnectedelements; j++)
+            {
+                power = pow(10, j);
+                m_ele = m_msh->ele_vector[m_node->getConnectedElementIDs()[j]];
+                new_mg = m_ele->GetPatchIndex();
+                MaterialGroup += m_ele->GetPatchIndex()*power;
+            }
+        }
+        //STORE MG Output
+        m_pcs->SetNodeValue(i, nidx, double(MaterialGroup));
+    }
 }

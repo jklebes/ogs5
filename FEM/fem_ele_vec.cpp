@@ -1010,6 +1010,10 @@ void CFiniteElementVec::LocalAssembly(const int update)
     double* a_n = NULL;
 
     Index = MeshElement->GetIndex();
+	if ((Index == 2149) && (update)){
+		Index = Index;
+	}
+
     SetMemory();
     SetMaterial();
     // 12.2009. WW
@@ -1119,35 +1123,18 @@ void CFiniteElementVec::LocalAssembly(const int update)
             _nodal_p2[i] = h_pcs->GetNodeValue(nodes[i], idx_P2);
         }
     }
-
     if (_nodal_S0)
     {
-        if (_flow_type == FiniteElement::PS_GLOBAL)
-        {
-            for (int i = 0; i < nnodes; i++)
-            {
-                _nodal_S0[i] = h_pcs->GetNodeValue(nodes[i], idx_S0);
-            }
-        }
-        else
-        {
-            const double fac =
-                (_flow_type == FiniteElement::RICHARDS_FLOW) ? -1.0 : 1.0;
-            for (int i = 0; i < nnodes; i++)
-            {
-                _nodal_S0[i] = m_mmp->SaturationCapillaryPressureFunction(
-                    fac * h_pcs->GetNodeValue(nodes[i], idx_P1 - 1));
-            }
-        }
-    }
-    if (_nodal_S && (_flow_type != FiniteElement::PS_GLOBAL))
-    {
-        const double fac =
-            (_flow_type == FiniteElement::RICHARDS_FLOW) ? -1.0 : 1.0;
         for (int i = 0; i < nnodes; i++)
         {
-            _nodal_S[i] =
-                m_mmp->SaturationCapillaryPressureFunction(fac * _nodal_p1[0]);
+            _nodal_S0[i] = h_pcs->GetNodeValue(nodes[i], idx_S0);
+        }
+    }
+    if (_nodal_S)
+    {
+        for (int i = 0; i < nnodes; i++)
+        {
+            _nodal_S[i] = h_pcs->GetNodeValue(nodes[i], idx_S);
         }
     }
 
@@ -2036,7 +2023,10 @@ void CFiniteElementVec::LocalAssembly_continuum(const int update)
     // Loop over Gauss points
     for (gp = 0; gp < nGaussPoints; gp++)
     {
-        //---------------------------------------------------------
+		if (((Index == 2152) || (Index == 2152)) && (update)) {
+			Index = Index;
+		}
+		//---------------------------------------------------------
         //  Get local coordinates and weights
         //  Compute Jacobian matrix and its determinate
         //---------------------------------------------------------
@@ -2052,6 +2042,7 @@ void CFiniteElementVec::LocalAssembly_continuum(const int update)
             smat->CalcYoungs_SVV(CalcStrain_v());
             smat->ElasticConsitutive(ele_dim, De);
         }
+
 
         ComputeStrain(gp);
 
@@ -2075,8 +2066,24 @@ void CFiniteElementVec::LocalAssembly_continuum(const int update)
                 dstress[i] = 0.0;
             if (!excavation)  // WX:07.2011 nonlinear excavation
             {
+
                 // De->Write();
                 De->multi(dstrain, dstress);
+
+				/*if (((Index == 1717) || (Index == 1718) || (Index == 1852) || (Index == 1853) || (Index == 1870) || (Index == 2012) || (Index == 2013) || (Index == 2149) || (Index == 2151) || (Index == 2152)) && (update)) {
+	
+					cout << "| " << Index << " " << gp << " ";
+					for (size_t i = 0; i < 4; i++) cout << dstrain[i]<< " ";
+					//cout << "| "
+					//<< "\n";
+
+					//cout << "| " << Index << " " << gp << " ";
+					for (size_t i = 0; i < 4; i++) cout << dstress[i] << " ";
+					cout << "| "
+						<< "\n";
+			
+				}*/
+
                 if (smat->Time_Dependent_E_nv_mode > MKleinsteZahl &&
                     pcs->ExcavMaterialGroup < 0)
                     for (i = 0; i < ns; i++)
@@ -2084,7 +2091,9 @@ void CFiniteElementVec::LocalAssembly_continuum(const int update)
                                       (*eleV_DM->Stress0)(i, gp);
             }
         }
-
+		if ((Index == 2151) && (update) && (gp == 0)) {
+			Index = Index;
+		}
         //---------------------------------------------------------
         // Integrate the stress by return mapping:
         //---------------------------------------------------------
@@ -2608,25 +2617,34 @@ void CFiniteElementVec::ExtropolateGuassStrain()
     double avgESxx, avgESyy, avgESzz, avgESxy, avgESxz, avgESyz;
     avgESxx = avgESyy = avgESzz = avgESxy = avgESxz = avgESyz = 0.0;
     if (this->GetExtrapoMethod() == ExtrapolationMethod::EXTRAPO_AVERAGE)
-    {
+	{
         // average
-        avgESxx = CalcAverageGaussPointValues(Sxx);
+		avgESxx = CalcAverageGaussPointValues(Sxx);
         avgESyy = CalcAverageGaussPointValues(Syy);
         avgESzz = CalcAverageGaussPointValues(Szz);
         avgESxy = CalcAverageGaussPointValues(Sxy);
-        avgESxz = CalcAverageGaussPointValues(Sxz);
-        avgESyz = CalcAverageGaussPointValues(Syz);
+		if (ele_dim == 3)
+		{
+			avgESxz = CalcAverageGaussPointValues(Sxz);
+			avgESyz = CalcAverageGaussPointValues(Syz);
+		}
     }
 
     ConfigShapefunction(ElementType);
-    for (int i = 0; i < nnodes; i++)
+	
+	if (Index == 2151) {
+		Index = Index;
+	}
+    
+	for (int i = 0; i < nnodes; i++)
     {
         ESxx = ESyy = ESzz = ESxy = ESxz = ESyz = 0.0;
 
         // Calculate values at nodes
         if (this->GetExtrapoMethod() == ExtrapolationMethod::EXTRAPO_LINEAR)
         {
-            SetExtropoGaussPoints(i);
+
+			SetExtropoGaussPoints(i);
             ComputeShapefct(1, dbuff0);  // Linear interpolation function
             //
             for (int j = i_s; j < i_e; j++)
@@ -2643,7 +2661,7 @@ void CFiniteElementVec::ExtropolateGuassStrain()
                 }
             }
         }
-        else if (this->GetExtrapoMethod() ==
+		else if (this->GetExtrapoMethod() ==
                  ExtrapolationMethod::EXTRAPO_AVERAGE)
         {
             // average
@@ -2774,12 +2792,16 @@ void CFiniteElementVec::ExtropolateGuassStress()
         avgESyy = CalcAverageGaussPointValues(Syy);
         avgESzz = CalcAverageGaussPointValues(Szz);
         avgESxy = CalcAverageGaussPointValues(Sxy);
-        avgESxz = CalcAverageGaussPointValues(Sxz);
-        avgESyz = CalcAverageGaussPointValues(Syz);
+		if (ele_dim == 3)
+		{
+			avgESxz = CalcAverageGaussPointValues(Sxz);
+			avgESyz = CalcAverageGaussPointValues(Syz);
+		}
         avgPls = CalcAverageGaussPointValues(pstr);
     }
 
     ConfigShapefunction(ElementType);
+
     for (int i = 0; i < nnodes; i++)
     {
         ESxx = ESyy = ESzz = ESxy = ESxz = ESyz = Pls = 0.0;
@@ -2788,7 +2810,7 @@ void CFiniteElementVec::ExtropolateGuassStress()
         if (this->GetExtrapoMethod() == ExtrapolationMethod::EXTRAPO_LINEAR)
         {
             //
-            SetExtropoGaussPoints(i);
+			SetExtropoGaussPoints(i);
             //
             ComputeShapefct(1, dbuff0);  // Linear interpolation function
             //

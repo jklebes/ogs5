@@ -692,6 +692,8 @@ void OUTData(double time_current, int time_step_number, bool force_output)
                 time_current);  // 6/2012 for calibration JOD
         else if (m_out->dat_type_name.compare("PRIMARY_VARIABLES") == 0)
             m_out->NODWritePrimaryVariableList(time_current);  // JOD 2014-11-10
+		else if (m_out->dat_type_name.compare("ENERGY") == 0)
+			m_out->ELEWriteMaterialGroupEnergy(time_current, time_step_number);  // CMCD 2020
 
         // ELE values, only called if ele values are defined for output, 05/2012
         // BG

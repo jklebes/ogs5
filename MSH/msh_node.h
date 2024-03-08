@@ -41,6 +41,7 @@ public:
 
     // GUI control variables
     double patch_area;  // OK4310
+	double node_exchange_area;
     bool crossroad;  // KR changed to bool // PCH: Make theses privates can be
                      // done later on.
     std::vector<long>
@@ -106,6 +107,9 @@ public:
     void SetY(double argY) { coordinate[1] = argY; }
     void SetZ(double argZ) { coordinate[2] = argZ; }
     void SetCoordinates(const double* argCoord);
+
+	void SetPatchArea (double argX) { patch_area = argX; }
+	void SetNodeExchangeArea(double argX) { node_exchange_area = argX; }
 
     int GetEquationIndex() const { return eqs_index; }
     void SetEquationIndex(long eqIndex) { eqs_index = eqIndex; }

@@ -91,6 +91,7 @@ CBoundaryConditionNode::CBoundaryConditionNode() : node_value_offset(0.0)
     conditional = false;
     for (std::size_t i = 0; i < 3; i++)
         _normal_vector[i] = 0;
+	node_gradient_switch = false;
 }
 
 void CBoundaryConditionNode::SetNormalVector(double const* const normal_vector)
@@ -156,6 +157,7 @@ CBoundaryCondition::CBoundaryCondition()
     this->setProcessDistributionType(FiniteElement::INVALID_DIS_TYPE);
     // FCT
     conditional = false;
+	gradient_switch = false;
     time_dep_interpol = false;
     epsilon = -1;                     // NW
     bcExcav = -1;                     // WX
@@ -484,11 +486,17 @@ std::ios::pos_type CBoundaryCondition::Read(std::ifstream* bc_file,
         if (line_string.find("$TIME_INTERVAL") != std::string::npos)
         {
             in.str(readNonBlankLineFromInputStream(*bc_file));
-            double t1, t2;
-            in >> t1 >> t2;
-            in.clear();
-            _time_intervals.push_back(new BaseLib::TimeInterval(t1, t2));
-            for (;;)
+			int no_values;
+			in >> no_values;
+			in.clear();
+			double t1, t2;
+			for (int k = 0; k < no_values; k++) {
+				in.str(readNonBlankLineFromInputStream(*bc_file));
+				in >> t1 >> t2;
+				in.clear();
+				_time_intervals.push_back(new BaseLib::TimeInterval(t1, t2));
+			}
+            /*for (;;)
             {
                 std::ios::pos_type old_position = bc_file->tellg();
                 line_string = readNonBlankLineFromInputStream(*bc_file);
@@ -506,7 +514,7 @@ std::ios::pos_type CBoundaryCondition::Read(std::ifstream* bc_file,
                     break;
                 }
             }
-            continue;
+            continue;*/
         }
 
         if (line_string.find("$FCT_TYPE") != std::string::npos)
@@ -1424,8 +1432,12 @@ void CBoundaryConditionsGroup::Set(CRFProcess* pcs,
                     if (bc->getProcessDistributionType() ==
                         FiniteElement::GRADIENT)  // 6/2012 JOD
                     {
-                        m_msh->GetNODOnPLY(ply, nodes_vector);
-
+						if (!m_msh) {
+							cout << "Missing mesh in allocation of GRADIENT in the boundary conditions" << endl;
+							abort();
+						}
+						m_msh->GetNODOnPLY(ply, nodes_vector);
+/*
                         for (size_t k(0); k < nodes_vector.size(); k++)
                         {
                             m_node_value = new CBoundaryConditionNode();
@@ -1445,7 +1457,47 @@ void CBoundaryConditionsGroup::Set(CRFProcess* pcs,
                                 msh_node_number_subst;
                             pcs->bc_node.push_back(bc);
                             pcs->bc_node_value.push_back(m_node_value);
-                        }
+                        }*/
+
+
+						int onZ = m_msh->GetCoordinateFlag();// % 10;
+						double node_depth;
+
+						for (size_t k(0); k < nodes_vector.size(); k++)
+						{
+							m_node_value = new CBoundaryConditionNode();
+							m_node_value->msh_node_number = -1;
+							m_node_value->msh_node_number =
+								nodes_vector[k] + ShiftInNodeVector;
+							m_node_value->geo_node_number = nodes_vector[k];
+							if (onZ == 10)  // 1D
+								node_depth = m_msh->nod_vector[nodes_vector[k]]->getData()[0];
+							if (onZ == 21)  // 2D XY
+								node_depth = m_msh->nod_vector[nodes_vector[k]]->getData()[1];
+							if (onZ == 22)  // 2D XZ
+								node_depth = m_msh->nod_vector[nodes_vector[k]]->getData()[2];
+							if (onZ == 32)  // 2D XY
+								node_depth = m_msh->nod_vector[nodes_vector[k]]->getData()[2];
+							m_node_value->node_value =
+								bc->gradient_ref_depth_gradient *
+								(bc->gradient_ref_depth -
+									node_depth) +
+								bc->gradient_ref_depth_value;
+							m_node_value->CurveIndex = bc->getCurveIndex();
+							if (m_node_value->CurveIndex > 0) {
+								m_node_value->node_gradient_switch = true;
+								m_node_value->m_node_value_gradient_ref_depth_gradient = bc->gradient_ref_depth_gradient;
+								m_node_value->m_node_value_gradient_ref_depth = bc->gradient_ref_depth;
+							}
+
+							m_node_value->pcs_pv_name = _pcs_pv_name;
+							m_node_value->msh_node_number_subst =
+								msh_node_number_subst;
+							pcs->bc_node.push_back(bc);
+							pcs->bc_node_value.push_back(m_node_value);
+							//cout << node_depth << " " << m_node_value->msh_node_number << endl;
+						}
+												
                     }
 
                     // WW / TF

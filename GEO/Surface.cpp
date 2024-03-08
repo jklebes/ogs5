@@ -155,4 +155,20 @@ int Surface::getTriangleIDOfPoint(const double* pnt) const
     return -1;
 }
 
+//Programmed new surface calling routine
+// Replaced the Surface Grid Route "isPntInSfc" above as this is not working.
+//CMCD 03/08/2023
+bool Surface::CheckPntInSfc(const double* pnt, double eps) const
+{
+    this->getNTriangles();
+    for (std::size_t i = 0; i < this->_sfc_triangles.size(); i++)
+    {
+        if (_sfc_triangles[i]->containsPointAreaCheck(pnt, eps))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 }  // namespace GEOLIB

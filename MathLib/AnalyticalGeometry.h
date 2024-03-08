@@ -124,6 +124,7 @@ bool lineSegmentsIntersect(const GEOLIB::Polyline* ply, size_t& idx0,
 bool lineSegmentIntersect(const GEOLIB::Point& a, const GEOLIB::Point& b,
                           const GEOLIB::Point& c, const GEOLIB::Point& d,
                           GEOLIB::Point& s);
+double calctwopointdistance(GEOLIB::Point const& a, GEOLIB::Point const& b);
 }  // end namespace MathLib
 
 #endif /* MATHTOOLS_H_ */

@@ -25,6 +25,7 @@ enum GEOTYPE
 {
     INVALID = 0,
     POINT,     //!< POINT
+	ELEMENT,   //! <ELEMENT
     POLYLINE,  //!< POLYLINE
     SURFACE,   //!< SURFACE
     VOLUME,    //!< VOLUME

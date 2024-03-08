@@ -4124,6 +4124,8 @@ int REACT::Call_Phreeqc(void)
     else
         mm_phreeqc += this->file_name_database;
 
+	mm_phreeqc += " phreeqc_screenout.txt";//CMCD
+
     char* m_phreeqc;
     m_phreeqc = new char[mm_phreeqc.size() + 1];
     strcpy(m_phreeqc, mm_phreeqc.c_str());

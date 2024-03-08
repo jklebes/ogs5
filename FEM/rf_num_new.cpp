@@ -81,6 +81,7 @@ CNumerics::CNumerics(string name)
     // GLOBAL
     renumber_method = 0;
     //
+	analytical = false;
     // LS - Linear Solver
     ls_method = 2;  // OK41
     ls_max_iterations = 1000;
@@ -716,6 +717,11 @@ ios::pos_type CNumerics::Read(ifstream* num_file)
             line.clear();
             continue;
         }
+		if (line_string.find("$ANALYTICAL") != string::npos)
+		{
+			analytical = true;
+			continue;
+		}
         // subkeyword found
         if (line_string.find("$DYNAMIC_DAMPING") != string::npos)
         {

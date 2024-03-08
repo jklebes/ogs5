@@ -166,6 +166,12 @@ bool lineSegmentsIntersect(const GEOLIB::Polyline* ply, size_t& idx0,
         }
     return false;
 }
+double calctwopointdistance(GEOLIB::Point const& a, GEOLIB::Point const& b)
+{
+	double const v[3] = {(b[0] - a[0])*(b[0] - a[0]), (b[1] - a[1])*(b[1] - a[1]), (b[2] - a[2])*(b[2] - a[2])};
+	return sqrt(v[0]+v[1]+v[2]);
+}
+
 
 double calcTriangleArea(GEOLIB::Point const& a, GEOLIB::Point const& b,
                         GEOLIB::Point const& c)

@@ -66,6 +66,8 @@
 // CB_merge_0513
 #include "rf_react_cap.h"
 
+#include "rf_bio.h" //CMCD BIO
+
 #ifdef CHEMAPP
 #include "eqlink.h"  //MX
 #endif
@@ -250,6 +252,8 @@ int ReadData(const char* dateiname,
 
     KRRead(dateiname, geo_obj, unique_name);
     KRWrite(dateiname);
+	BPRead(dateiname);//CMCD
+
 #ifdef CHEMAPP
     CHMRead(dateiname);  // MX for CHEMAPP
 #endif
@@ -455,6 +459,8 @@ std::ios::pos_type CURReadCurve(std::ifstream* cur_file)
         //--------------------------------------------------------------------
         if (line_string.find(";") != string::npos)
             continue;
+		if (line_string.find("//") != string::npos)
+			continue;
         //--------------------------------------------------------------------
         // DATA
         // OK    cur_file->seekg(position,ios::beg);

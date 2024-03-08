@@ -75,6 +75,28 @@ bool Triangle::containsPoint(const double* pnt, double eps) const
         &p, _pnts[_pnt_ids[0]], _pnts[_pnt_ids[1]], _pnts[_pnt_ids[2]], eps);
 }
 
+bool Triangle::containsPointAreaCheck(const double* pnt, double eps)
+    const  // Previous check point in triangle not working
+{
+    GEOLIB::Point const p(pnt);
+    GEOLIB::Point A(_pnts[_pnt_ids[0]]->getData());
+    GEOLIB::Point B(_pnts[_pnt_ids[1]]->getData());
+    GEOLIB::Point C(_pnts[_pnt_ids[2]]->getData());
+
+    double c1 = MathLib::calcTriangleArea(A, B, C);
+    double c2 = MathLib::calcTriangleArea(A, B, p);
+    double c3 = MathLib::calcTriangleArea(A, C, p);
+    double c4 = MathLib::calcTriangleArea(B, C, p);
+
+    double eps_area = (eps * eps / 2.0);
+    
+    c1 += eps_area;
+
+    if (c2 + c3 + c4 > c1)
+        return false;
+    return true;
+}
+
 bool Triangle::containsPoint2D(const double* pnt) const
 {
     GEOLIB::Point const& a(*(_pnts[_pnt_ids[0]]));

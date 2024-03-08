@@ -245,7 +245,8 @@ void CFluidMomentum::SolveDarcyVelocityOnNode()
     else if (coordinateflag == 21)
     {
         dimension = 2;
-        axis = 1;  // x, y only
+		if (pcs_vector[0]->YDEPTH) axis = 2;//CMCD may need to revisit
+		else axis = 1;  // x, y only
     }
     else if (coordinateflag == 22)
     {
@@ -257,6 +258,7 @@ void CFluidMomentum::SolveDarcyVelocityOnNode()
         dimension = 3;
         axis = 3;  // x, y, z only
     }
+
 
     // Loop over three dimension to solve three velocity components
     for (int phase = 0; phase < GetRFProcessNumPhases(); phase++)
@@ -300,6 +302,7 @@ void CFluidMomentum::SolveDarcyVelocityOnNode()
 #else
             ExecuteLinearSolver(m_pcs->getEQSPointer());
 #endif
+
 
             /* Store solution vector in model node values table */
             if (dimension == 1)

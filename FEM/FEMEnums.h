@@ -33,6 +33,7 @@ enum ProcessType
 {
     INVALID_PROCESS = 0,  //!< INVALID_PROCESS
     AIR_FLOW,             //!< AIR_FLOW
+	BIOLOGICAL,           //Guess what CMCD
     /// M process, single/multi-phase flow
     DEFORMATION,          //!< DEFORMATION
     DEFORMATION_DYNAMIC,  //!< ...
@@ -192,6 +193,7 @@ enum DistributionType
 {
     INVALID_DIS_TYPE = 0,
     ANALYTICAL,  // ST
+	BIO, //ST to link to Biological processes
     AVERAGE,
     CONSTANT,  // IC, BC, ST
     CONSTANT_GEO,
@@ -208,9 +210,11 @@ enum DistributionType
     LINEAR_NEUMANN,  // ST
     NORMALDEPTH,     // ST
     POINT,           // BC
+	ELEMENT,
     PRECIPITATION,
     SYSTEM_DEPENDENT,  // ST
     TRANSFER_SURROUNDING,
+	CAUCHY,
     NODESCONSTANT,  // IC (for DOMAIN keyword)
     CLIMATE,        // climate data (by NB)
     RECHARGE,       // MW

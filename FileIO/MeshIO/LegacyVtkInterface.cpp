@@ -1254,9 +1254,17 @@ void LegacyVtkInterface::printScalarArray(string arrayName,
     vtk_file << "LOOKUP_TABLE default"
              << "\n";
 
+	double t_shift = 0.0;
+	CRFProcess* T_process;
+
+	if (arrayName == "TEMPERATURE1") {
+		T_process = PCSGetHeat();
+		if (T_process->getTemperatureUnit() == FiniteElement::CELSIUS) t_shift = PhysicalConstant::CelsiusZeroInKelvin;
+	}
+
     for (long j = 0l; j < numNodes; j++)
         vtk_file << pcs->GetNodeValue(_mesh->nod_vector[j]->GetIndex(),
-                                      indexDataArray)
+                                      indexDataArray)-t_shift
                  << "\n";
 }
 

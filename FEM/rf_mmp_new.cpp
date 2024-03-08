@@ -47,6 +47,8 @@ extern double gravity_constant;
 
 #include "PhysicalConstant.h"
 
+#include "rf_bio.h"
+
 // MAT-MP data base lists
 list<string> keywd_list;
 list<string> mat_name_list;
@@ -472,6 +474,9 @@ std::ios::pos_type CMediumProperties::Read(std::ifstream* mmp_file)
                 case 7:  // n=f(stress_mean) WW
                     in >> porosity_curve;
                     break;
+				case 9:// Biological model, initial value replaced later by changin porosity
+					in >> porosity_model_values[0];
+					break;
                 case 10:  // Chemical swelling model (constrained swelling,
                           // constant I)
                 {
@@ -516,7 +521,12 @@ std::ios::pos_type CMediumProperties::Read(std::ifstream* mmp_file)
                                                      // BRNS calculation
                     break;
 #endif
-                default:
+				case 17:  // mineral precipitation / dissolution by ABM
+					in >> porosity_model_values[0];  // Initial porosity
+					in >> porosity_model_values[1];  // d10
+					break;
+
+				default:
                     std::cerr << "Error in MMPRead: no valid porosity model"
                               << "\n";
                     break;
@@ -564,6 +574,8 @@ std::ios::pos_type CMediumProperties::Read(std::ifstream* mmp_file)
             in.clear();
             continue;
         }
+		// subkeyword found
+
         //------------------------------------------------------------------------
         // 4..TORTUOSITY
         //------------------------------------------------------------------------
@@ -1632,6 +1644,12 @@ std::ios::pos_type CMediumProperties::Read(std::ifstream* mmp_file)
                                      "permeability_tensor_type 2"
                                   << "\n";
                     break;
+				case 9:  // Based on Koseny Carmen and d10, CMCD 2020
+					permeability_tensor_type = 1;
+					permeability_model = 9;  // Koseny Carmen
+					in >> permeability_porosity_model_values[0]; // Initial porosity
+					in >> permeability_porosity_model_values[1]; // d10
+					break;
                 default:
                     std::cout << "Error in MMPRead: no valid permeability model"
                               << "\n";
@@ -3008,11 +3026,17 @@ double* CMediumProperties::HeatDispersionTensorNew(int ip)
     int i;
     ElementValue* gp_ele = ele_gp_value[index];
 
+
+	//int index = Fem_Ele_Std->Index;
+	if ((index == 63)&&(aktueller_zeitschritt==2)) {
+		index = index;
+	}
     // Materials
     // MX, add index
     heat_conductivity_porous_medium = HeatConductivityTensor(index);
+	//m_mfp = mfp_vector[0];
     m_mfp = Fem_Ele_Std->FluidProp;
-    fluid_density = m_mfp->Density();
+	fluid_density = m_mfp->Density();
     heat_capacity_fluids = m_mfp->getSpecificHeatCapacity();
 
     // Global Velocity
@@ -4113,6 +4137,16 @@ double CMediumProperties::Porosity(long number, double theta)
             porosity =
                 GetCurveValue(porosity_curve, 0, primary_variable[0], &gueltig);
             break;
+		case 9:
+			if (aktueller_zeitschritt == 1) {
+				porosity = porosity_model_values[0];
+			}
+			else {
+				CRFProcess* m_pcs_flow = PCSGetFlow();
+				int idx_n = m_pcs_flow->GetElementValueIndex("POROSITY");
+				porosity = m_pcs_flow->GetElementValue(number, idx_n);
+			}
+			break;
         case 10:
             /* porosity change through dissolution/precipitation */
             porosity = PorosityVolumetricChemicalReaction(number);
@@ -4300,6 +4334,16 @@ double CMediumProperties::Porosity(CElement* assem)
             porosity =
                 GetCurveValue(porosity_curve, 0, primary_variable[0], &gueltig);
             break;
+		case 9:
+			if (aktueller_zeitschritt == 1) {
+				porosity = porosity_model_values[0];
+			}
+			else {
+				CRFProcess* m_pcs_flow = PCSGetFlow();
+				int idx_n = m_pcs_flow->GetElementValueIndex("POROSITY");
+				porosity = m_pcs_flow->GetElementValue(number, idx_n + 1);
+			}
+			break;
         case 10:
             /* porosity change through dissolution/precipitation */
             porosity = PorosityVolumetricChemicalReaction(number);
@@ -4517,7 +4561,7 @@ double* CMediumProperties::PermeabilityTensor(long index)
     static double tensor[9];
     int perm_index = 0;
 
-    int idx_k, idx_n;
+    int idx_k, idx_n, idx_b;
     double /*k_old, n_old,*/ k_new, n_new, k_rel, n_rel;
     CRFProcess* m_pcs_tmp(NULL);
     if ((permeability_model == 8) && (porosity_model == 13))
@@ -4780,6 +4824,30 @@ double* CMediumProperties::PermeabilityTensor(long index)
             idx_k = m_pcs_tmp->GetElementValueIndex("PERMEABILITY");
             tensor[0] = m_pcs_tmp->GetElementValue(index, idx_k + 1);
         }
+		else if (permeability_model == 9)
+		{  // CMCD Kosney Carmen Relationship
+		   // if first time step, do nothing. otherwise,
+			if (aktueller_zeitschritt > 1)
+			{
+				CRFProcess* pcs_tmp(NULL);
+				for (size_t i = 0; i < pcs_vector.size(); i++)
+				{
+					pcs_tmp = pcs_vector[i];
+					//	                if (
+					// m_pcs_tmp->pcs_type_name.compare("GROUNDWATER_FLOW") == 0
+					//|| m_pcs_tmp->pcs_type_name.compare("LIQUID_FLOW") == 0)
+					// TF
+					if (pcs_tmp->getProcessType() ==
+						FiniteElement::GROUNDWATER_FLOW ||
+						pcs_tmp->getProcessType() == FiniteElement::LIQUID_FLOW)
+						break;
+				}
+				// get index
+				idx_k = pcs_tmp->GetElementValueIndex("PERMEABILITY");
+				k_new = pcs_tmp->GetElementValue(index, idx_k);
+                tensor[0] = k_new;
+			}
+		}
         // end of K-C
         // relationship-----------------------------------------------------------------------------------
     }
@@ -5665,7 +5733,7 @@ void GetHeterogeneousFields()
             m_mmp->SetDistributedELEProperties(file_path_base_ext);
             m_mmp->WriteTecplotDistributedProperties();
         }
-        // NW    else m_mmp->SetConstantELEarea(m_mmp->geo_area,i);
+        else m_mmp->SetConstantELEarea(m_mmp->geo_area,i);
         //....................................................................
     }
     //----------------------------------------------------------------------
@@ -7399,8 +7467,10 @@ double CMediumProperties::NonlinearFlowFunction(long index, int gp,
 #else
         k_rel = 1.0 / (forchheimer_a1 + forchheimer_a2 * v_mag);  // k0=1.0
 #endif
-        // if (k_rel!=1.0)
-        //    std::cout << index << "-" << gp << ": k_rel=" << k_rel << endl;
+        //if (k_rel!=1.0)
+        if (index == 10)
+        std::cout << index << "-" << v_mag << ": k_rel=" << k_rel << endl;
+         //std::cout << index << "-" << gp << ": k_rel=" << k_rel << endl;
     }
     else if (flowlinearity_model ==
              5)  // general Forchheimer, -dp/dx = a1 q + a2 q^2
@@ -7420,6 +7490,8 @@ double CMediumProperties::NonlinearFlowFunction(long index, int gp,
             double k0 = k_tensor[0];
             k_rel = 1.0 / (1.0 + forchheimer_a2 * k0 * v_mag);
         }
+        //if (index == 1)
+            //std::cout << index << "-" << v_mag << ": k_rel=" << k_rel << endl;
     }
     else
     {

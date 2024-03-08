@@ -169,7 +169,8 @@ public:
     void FaceNormalFluxIntegration(long index, double* NodeVal_adv,
                                    double* NodeVal, int* nodesFace, CElem* face,
                                    CRFProcess* m_pcs,
-                                   double* normal_vector);  // JOD 2014-11-10
+                                   double* normal_vector,
+								   bool diffusive_only);  // JOD 2014-11-10 //CMCD 2020
 
     // Coupling
     //
@@ -181,6 +182,7 @@ public:
     // Interpolate Gauss values
     double interpolate(double const* const nodalVal, const int order = 1) const;
     double interpolate(const int idx, CRFProcess* m_pcs, const int order = 1);
+    double minimumvalue(const int idx, CRFProcess* m_pcs);
     // double elemnt_average (const int idx, const int order =1);
     double elemnt_average(const int idx, CRFProcess* m_pcs,
                           const int order = 1);

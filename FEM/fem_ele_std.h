@@ -26,6 +26,7 @@
 #include "rf_mfp_new.h"
 //#include "rf_msp_new.h"
 #include "rf_out_new.h"  //OK
+//#include "rf_bio.h"//CMCD
 
 #include "Eigen/Eigen"
 
@@ -478,6 +479,7 @@ protected:
     friend class ::CMediumProperties;
     friend class SolidProp::CSolidProperties;
     friend class ::CFluidProperties;
+	//friend class ::CBiologicalProperties;
     // Friend functions. WW
     friend double ::MFPCalcFluidsHeatCapacity(CFiniteElementStd* assem);
 
@@ -530,10 +532,10 @@ public:
     double* rho_s_curr;
     double* q_R;
 // End of Thermal Storage parameters---------------
-#ifdef USE_TRANSPORT_FLUX
+//#ifdef USE_TRANSPORT_FLUX
     Matrix TransportFlux;  // Fick or Fourier law  with dispersion      JOD
                            // 2014-11-10
-#endif
+//#endif
 private:
     // Friend class
     friend class ::CRFProcess;

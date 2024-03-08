@@ -69,6 +69,10 @@ public:
     bool isPntInSfc(const double* pnt,
                     double eps = std::numeric_limits<double>::epsilon()) const;
 
+    //CMCD Error in point in surface algorithm using grids, simplified.
+    bool CheckPntInSfc(const double* pnt,
+                    double eps = std::numeric_limits<double>::epsilon()) const;
+
     const std::vector<Point*>* getPointVec() const { return &_sfc_pnts; }
     /**
      * method allows access to the internal axis aligned bounding box

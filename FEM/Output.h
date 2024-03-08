@@ -178,6 +178,7 @@ public:
     void NODWriteTotalFlux(double, int);       // JOD 2014-11-10
     void NODWritePointsCombined(double);       // 6/2012 JOD
     void NODWritePrimaryVariableList(double);  // JOD 2014-11-10
+	void ELEWriteMaterialGroupEnergy(double, int);  //CMCD 2020
     void CalculateTotalFlux(MeshLib::CFEMesh*, std::vector<long>&,
                             std::vector<double>&,
                             std::vector<double>&);            // JOD 2014-11-10
@@ -214,6 +215,8 @@ public:
      * commandline argument.
      */
     void setFileBaseName(const std::string& fn);
+
+    void MapMaterialGroupforNodesOutput(); //CMCD For Anas Feb 2024
 
     size_t getNSteps() const { return nSteps; }
     /**

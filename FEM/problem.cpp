@@ -79,6 +79,7 @@ extern int ReadData(const char*,
 #include "tools.h"
 #include "timer.h"
 #include "rf_msp_new.h"  //WX:01.2013
+#include "rf_bio.h"
 //
 #ifdef CHEMAPP
 #include "eqlink.h"
@@ -201,6 +202,11 @@ Problem::Problem(const char* filename)
             pcs_fluid_momentum->GetNodeValueIndex("VELOCITY1_Z", true);
     }
     // delete pcs_fluid_momentum;
+
+	CRFProcess* pcs_bio = PCSGet("BIOLOGICAL");
+	if (pcs_bio) {
+		Update_sourceterm_exchangeareas();
+	}
 
     //
     // JT: Set to true to force node copy at end of loop
@@ -680,20 +686,21 @@ Problem::~Problem()
    GeoSys - Function: SetActiveProcesses
    Task:
    total_processes:
-    0: LIQUID_FLOW     | 1: GROUNDWATER_FLOW  | 2: RICHARDS_FLOW
+    6: LIQUID_FLOW     | 1: GROUNDWATER_FLOW  | 2: RICHARDS_FLOW
     3: PS_GLOBAL   | 4: MULTI_PHASE_FLOW  | 5: COMPONENTAL_FLOW
-    6: OVERLAND_FLOW   | 7: AIR_FLOW          | 8: HEAT_TRANSPORT
-    9: FLUID_MOMENTUM  |10: RANDOM_WALK       |11: MASS_TRANSPORT
-   12: DEFORMATION     | 14: TNEQ             |15: TES
+    0: OVERLAND_FLOW   | 7: AIR_FLOW          | 9: HEAT_TRANSPORT
+    8: FLUID_MOMENTUM  |10: RANDOM_WALK       |11: MASS_TRANSPORT
+   12: DEFORMATION     |13:BIOLOGICAL         | 14: TNEQ             |15: TES
    Return:
    Programming:
    07/2008 WW
    03/2009 PCH added PS_GLOBAL
+   03/2021 CMCD FM in inner coupling
    Modification:
    -------------------------------------------------------------------------*/
 inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
 {
-    //	if (m_pcs->pcs_type_name.compare("OVERLAND_FLOW") == 0) {
+
     if (m_pcs->getProcessType() == FiniteElement::OVERLAND_FLOW)
     {
         if (!activefunc)
@@ -701,7 +708,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[0] = m_pcs;
         active_processes[0] = &Problem::OverlandFlow;
         return 0;
-        //	} else if (m_pcs->pcs_type_name.compare("AIR_FLOW") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::GROUNDWATER_FLOW)
     {
@@ -710,7 +716,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[1] = m_pcs;
         active_processes[1] = &Problem::GroundWaterFlow;
         return 1;
-        //	} else if (m_pcs->pcs_type_name.compare("RICHARDS_FLOW") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::RICHARDS_FLOW)
     {
@@ -719,7 +724,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[2] = m_pcs;
         active_processes[2] = &Problem::RichardsFlow;
         return 2;
-        //	} else if (m_pcs->pcs_type_name.compare("TWO_PHASE_FLOW") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::TWO_PHASE_FLOW)
     {
@@ -728,7 +732,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[3] = m_pcs;
         active_processes[3] = &Problem::TwoPhaseFlow;
         return 3;
-        //	} else if (m_pcs->pcs_type_name.compare("MULTI_PHASE_FLOW") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::MULTI_PHASE_FLOW)
     {
@@ -753,7 +756,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[6] = m_pcs;
         active_processes[6] = &Problem::LiquidFlow;
         return 6;
-        //	} else if (m_pcs->pcs_type_name.compare("GROUNDWATER_FLOW") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::AIR_FLOW)
     {
@@ -762,25 +764,22 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[7] = m_pcs;
         active_processes[7] = &Problem::AirFlow;
         return 7;
-        //	} else if (m_pcs->pcs_type_name.compare("HEAT_TRANSPORT") == 0) {
     }
-    else if (m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT)
+    else if (m_pcs->getProcessType() == FiniteElement::FLUID_MOMENTUM)//CMCD Swapped order round so Heat transport gets Fluid Momemtum calculations.
     {
         if (!activefunc)
             return 8;
         total_processes[8] = m_pcs;
-        active_processes[8] = &Problem::HeatTransport;
+        active_processes[8] = &Problem::FluidMomentum;
         return 8;
-        //	} else if (m_pcs->pcs_type_name.compare("FLUID_MOMENTUM") == 0) {
     }
-    else if (m_pcs->getProcessType() == FiniteElement::FLUID_MOMENTUM)
+    else if (m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT)
     {
         if (!activefunc)
             return 9;
         total_processes[9] = m_pcs;
-        active_processes[9] = &Problem::FluidMomentum;
+        active_processes[9] = &Problem::HeatTransport;
         return 9;
-        //	} else if (m_pcs->pcs_type_name.compare("RANDOM_WALK") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::RANDOM_WALK)
     {
@@ -799,7 +798,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         else
             DATWriteParticleFile(0);  // YS
         return 10;
-        //	} else if (m_pcs->pcs_type_name.compare("MASS_TRANSPORT") == 0) {
     }
     else if (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT)
     {
@@ -808,8 +806,6 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[11] = m_pcs;
         active_processes[11] = &Problem::MassTrasport;
         return 11;
-        //	} else if (m_pcs->pcs_type_name.find("DEFORMATION") != string::npos)
-        //{
     }
     else if (isDeformationProcess(m_pcs->getProcessType()))
     {
@@ -818,8 +814,15 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
         total_processes[12] = m_pcs;
         active_processes[12] = &Problem::Deformation;
         return 12;
-        //	} else if (m_pcs->pcs_type_name.find("PS_GLOBAL") != string::npos) {
     }
+	else if (m_pcs->getProcessType() == FiniteElement::BIOLOGICAL)
+	{
+		if (!activefunc)
+			return 13;
+		total_processes[13] = m_pcs;
+		active_processes[13] = &Problem::Biological;
+		return 13;
+	}
     else if (m_pcs->getProcessType() == FiniteElement::PS_GLOBAL)
     {
         //    if(!activefunc) return 13;
@@ -1338,7 +1341,7 @@ void Problem::Euler_TimeDiscretize()
                     ->getProcessType()).data());
         if (m_tim->time_control_type == TimeControlType::FIXED_STEPS)
         {
-             ScreenMessage("No time control for this process.\n");
+             ScreenMessage("No dynamic time control for this process.\n");
         }
         else
         {
@@ -1386,6 +1389,7 @@ void Problem::Euler_TimeDiscretize()
 bool Problem::CouplingLoop()
 {
     int i, index, cpl_index;
+	int j;
     double max_outer_error, max_inner_error;  //, error;
     bool transient_bc = false;
     bool run_flag[max_processes];
@@ -1434,6 +1438,16 @@ bool Problem::CouplingLoop()
         }
     }
     int num_processes = (int)active_process_index.size();
+
+	//CMCD Changing order of running to make sure if FLUID_MOMENTUM is defined, this is the process which controls the fluid velocities.
+	/*for (i = 0; i < (int)total_processes.size()-1; i++)
+	{
+		if ((active_process_index[i] == 8)&&(active_process_index[i] == 9)) {//Heat before fluid momentum
+			active_process_index[i] = 9;
+			active_process_index[i+1] = 8;
+
+		}
+	}*/
     //
     // JT: All active processes must run on the overall loop. Strange this
     // wasn't the case before.
@@ -1487,86 +1501,184 @@ bool Problem::CouplingLoop()
             // ---------------------------------------
             if (cpl_index >= 0 && run_flag[cpl_index])
             {
-                CRFProcess* a_pcs = total_processes[index];
-                CRFProcess* b_pcs = total_processes[cpl_index];
-                //
-                inner_max = a_pcs->m_num->cpl_max_iterations;
-                //				inner_min = a_pcs->m_num->cpl_min_iterations; //
-                // variable set but never used
-                //
-                a_pcs->iter_outer_cpl = outer_index;
-                b_pcs->iter_outer_cpl = outer_index;
-                //
-                max_inner_error = 0.0;
-                for (inner_index = 0;
-                     inner_index < a_pcs->m_num->cpl_max_iterations;
-                     inner_index++)
-                {
-                    a_pcs->iter_inner_cpl = inner_index;
-                    b_pcs->iter_inner_cpl = inner_index;
-                    //
-                    // FIRST PROCESS
-                    loop_process_number = i;
-                    if (a_pcs->first_coupling_iteration)
-                        PreCouplingLoop(a_pcs);
-                    //					error = Call_Member_FN(this,
-                    // active_processes[index])();
-                    Call_Member_FN(this, active_processes[index])();
-                    if (!a_pcs->TimeStepAccept())
-                    {
-                        accept = false;
-                        break;
-                    }
-                    //
-                    // COUPLED PROCESS
-                    loop_process_number = i + 1;
-                    if (b_pcs->first_coupling_iteration)
-                        PreCouplingLoop(b_pcs);
-                    //					error = Call_Member_FN(this,
-                    // active_processes[cpl_index])();
-                    Call_Member_FN(this, active_processes[cpl_index])();
-                    if (!b_pcs->TimeStepAccept())
-                    {
-                        accept = false;
-                        break;
-                    }
-                    //
-                    // Check for break criteria
-                    max_inner_error = MMax(a_pcs->cpl_max_relative_error,
-                                           b_pcs->cpl_max_relative_error);
-                    a_pcs->first_coupling_iteration =
-                        false;  // No longer true (JT: these are important, and
-                                // are also used elswhere).
-                    b_pcs->first_coupling_iteration = false;  // No longer true.
-                    //
-                    // Store the outer loop error
-                    if (inner_index == 0)
-                        max_outer_error =
-                            MMax(max_outer_error, max_inner_error);
-                    //
-                    ScreenMessage(
-                    "\n==========================================="
-                     "===========\n");
-                    ScreenMessage(
-                        "Inner coupling loop %d/%d complete.\n",
-                        inner_index + 1, inner_max);
-                    ScreenMessage(
-                        "Max coupling error (relative to tolerance): %0.3e\n",
-                        max_inner_error);
-                    ScreenMessage(
-                        "============================================="
-                        "=========\n");
-                    //
-                    // Coupling convergence criteria (use loop minimum from
-                    // a_pcs because this is where the coupled process was
-                    // called)
-                    if (max_inner_error <= 1.0 &&
-                        inner_index + 2 >
-                            a_pcs->m_num
-                                ->cpl_min_iterations)  // JT: error is relative
-                                                       // to the tolerance.
-                        break;
-                }
+				bool FM = false;//CMCD Check if Fluid Momentum Defined, if so use for calcualtion of velocities
+				if ((index == 6) || (index == 1)) {//LIQUID_FLOW 6 or GROUNDWATER 1
+					for (j = 0; j < num_processes; j++) {
+						if (active_process_index[j] == 8) FM = true;
+					}
+				}
+				if (!FM) {
+					CRFProcess* a_pcs = total_processes[index];
+					CRFProcess* b_pcs = total_processes[cpl_index];//CMCD Here is where we need to add the FM as a default if defined in coupling GW or LQ
+					//
+					inner_max = a_pcs->m_num->cpl_max_iterations;
+					//				inner_min = a_pcs->m_num->cpl_min_iterations; //
+					// variable set but never used
+					//
+					a_pcs->iter_outer_cpl = outer_index;
+					b_pcs->iter_outer_cpl = outer_index;
+					//
+					max_inner_error = 0.0;
+					for (inner_index = 0;
+						inner_index < a_pcs->m_num->cpl_max_iterations;
+						inner_index++)
+					{
+						a_pcs->iter_inner_cpl = inner_index;
+						b_pcs->iter_inner_cpl = inner_index;
+						//
+						// FIRST PROCESS
+						loop_process_number = i;
+						if (a_pcs->first_coupling_iteration)
+							PreCouplingLoop(a_pcs);
+						//					error = Call_Member_FN(this,
+						// active_processes[index])();
+						Call_Member_FN(this, active_processes[index])();
+						if (!a_pcs->TimeStepAccept())
+						{
+							accept = false;
+							break;
+						}
+						//
+						// COUPLED PROCESS
+						loop_process_number = i + 1;
+						if (b_pcs->first_coupling_iteration)
+							PreCouplingLoop(b_pcs);
+						//					error = Call_Member_FN(this,
+						// active_processes[cpl_index])();
+						Call_Member_FN(this, active_processes[cpl_index])();
+						if (!b_pcs->TimeStepAccept())
+						{
+							accept = false;
+							break;
+						}
+						//
+						// Check for break criteria
+						max_inner_error = MMax(a_pcs->cpl_max_relative_error,
+							b_pcs->cpl_max_relative_error);
+						a_pcs->first_coupling_iteration =
+							false;  // No longer true (JT: these are important, and
+									// are also used elswhere).
+						b_pcs->first_coupling_iteration = false;  // No longer true.
+						//
+						// Store the outer loop error
+						if (inner_index == 0)
+							max_outer_error =
+							MMax(max_outer_error, max_inner_error);
+						//
+						ScreenMessage(
+							"\n==========================================="
+							"===========\n");
+						ScreenMessage(
+							"Inner coupling loop %d/%d complete.\n",
+							inner_index + 1, inner_max);
+						ScreenMessage(
+							"Max coupling error (relative to tolerance): %0.3e\n",
+							max_inner_error);
+						ScreenMessage(
+							"============================================="
+							"=========\n");
+						//
+						// Coupling convergence criteria (use loop minimum from
+						// a_pcs because this is where the coupled process was
+						// called)
+						if (max_inner_error <= 1.0 &&
+							inner_index + 2 >
+							a_pcs->m_num
+							->cpl_min_iterations)  // JT: error is relative
+												   // to the tolerance.
+							break;
+					}
+				}
+				else {//Fluid Momentum Defined, include for velocity calculation CMCD
+					CRFProcess* a_pcs = total_processes[index];
+					CRFProcess* fm_pcs = total_processes[8];
+					CRFProcess* b_pcs = total_processes[cpl_index];//CMCD Here is where we need to add the FM as a default if defined in coupling GW or LQ
+																   //
+					inner_max = a_pcs->m_num->cpl_max_iterations;
+					//				inner_min = a_pcs->m_num->cpl_min_iterations; //
+					// variable set but never used
+					//
+					a_pcs->iter_outer_cpl = outer_index;
+					b_pcs->iter_outer_cpl = outer_index;
+					//
+					max_inner_error = 0.0;
+					for (inner_index = 0;
+						inner_index < a_pcs->m_num->cpl_max_iterations;
+						inner_index++)
+					{
+						a_pcs->iter_inner_cpl = inner_index;
+						b_pcs->iter_inner_cpl = inner_index;
+						//
+						// FIRST PROCESS
+						loop_process_number = i;
+						if (a_pcs->first_coupling_iteration)
+							PreCouplingLoop(a_pcs);
+						Call_Member_FN(this, active_processes[index])();
+						if (!a_pcs->TimeStepAccept())
+						{
+							accept = false;
+							break;
+						}
+						//
+						//FM PROCESS
+						loop_process_number = i;
+						if (fm_pcs->first_coupling_iteration)
+							PreCouplingLoop(fm_pcs);
+						Call_Member_FN(this, active_processes[8])();
+						if (!fm_pcs->TimeStepAccept())
+						{
+							accept = false;
+							break;
+						}
+
+						// COUPLED PROCESS
+						loop_process_number = i + 1;
+						if (b_pcs->first_coupling_iteration)
+							PreCouplingLoop(b_pcs);
+						Call_Member_FN(this, active_processes[cpl_index])();
+						if (!b_pcs->TimeStepAccept())
+						{
+							accept = false;
+							break;
+						}
+						//
+						// Check for break criteria
+						max_inner_error = MMax(a_pcs->cpl_max_relative_error,
+							b_pcs->cpl_max_relative_error);
+						a_pcs->first_coupling_iteration =
+							false;  // No longer true (JT: these are important, and
+									// are also used elswhere).
+						b_pcs->first_coupling_iteration = false;  // No longer true.
+																  //
+																  // Store the outer loop error
+						if (inner_index == 0)
+							max_outer_error =
+							MMax(max_outer_error, max_inner_error);
+						//
+						ScreenMessage(
+							"\n==========================================="
+							"===========\n");
+						ScreenMessage(
+							"Inner coupling loop %d/%d complete.\n",
+							inner_index + 1, inner_max);
+						ScreenMessage(
+							"Max coupling error (relative to tolerance): %0.3e\n",
+							max_inner_error);
+						ScreenMessage(
+							"============================================="
+							"=========\n");
+						//
+						// Coupling convergence criteria (use loop minimum from
+						// a_pcs because this is where the coupled process was
+						// called)
+						if (max_inner_error <= 1.0 &&
+							inner_index + 2 >
+							a_pcs->m_num
+							->cpl_min_iterations)  // JT: error is relative
+												   // to the tolerance.
+							break;
+					}
+				}
                 run_flag[cpl_index] = false;  // JT: CRUCIAL!!
             }
             else
@@ -3435,7 +3547,7 @@ inline double Problem::AirFlow()
 inline double Problem::HeatTransport()
 {
     double error = 1.0e+8;
-    CRFProcess* m_pcs = total_processes[8];
+    CRFProcess* m_pcs = total_processes[9];//CMCD changed after Fluid Momentum
     if (!m_pcs->selected)
         return error;  // 12.12.2008 WW
     // CB This is a cheat to map a 2D horizontal heat pump distribution on a
@@ -3652,7 +3764,7 @@ inline double Problem::MassTrasport()
 inline double Problem::FluidMomentum()
 {
     double error = 1.0e+8;
-    CRFProcess* m_pcs = total_processes[9];
+    CRFProcess* m_pcs = total_processes[8];//CMCD Fluid Momentum before heat transport
     //
     if (!m_pcs->selected)
         return error;  // 12.12.2008 WW
@@ -3894,6 +4006,50 @@ inline double Problem::Deformation()
             dm_pcs->CalcSecondaryVariablesUnsaturatedFlow();
     }
     return error;
+}
+
+/*-------------------------------------------------------------------------
+GeoSys - Function: Biological
+Task: Simulate Biological Growth
+Return: error
+Programming:
+07/2008 WW Extract from LOPTimeLoop_PCS();
+Modification:
+-------------------------------------------------------------------------*/
+inline double Problem::Biological()
+{
+	//CRFProcessDeformation* dm_pcs = NULL;
+	//double error = 1.0e+8;
+	CRFProcess* m_pcs = total_processes[13];
+	//
+	//dm_pcs = (CRFProcessDeformation*)(m_pcs);
+	//error = dm_pcs->Execute(loop_process_number);
+	std::cout
+		<< "\n      ================================================" << "\n";
+	std::cout << "    ->Process " << loop_process_number << ": " <<"BIOLOGICAL"	<< "\n";
+	std::cout << "    -> Species " << bp_vector[0]->bacteria_name << "\n";
+	std::cout << "      ================================================" << "\n";
+	std::cout << "      Analytical solution "<< "\n";
+	
+	m_pcs->SetCPL();
+	CalculateBiomassGrowth(m_pcs);//CMCD Problem to sort
+	/*if (dm_pcs->pcs_type_name_vector.size() > 0 &&
+		dm_pcs->pcs_type_name_vector[0].find("DYNAMIC") != std::string::npos)
+	{
+		return error;
+	}
+	// Error
+	if (dm_pcs->type / 10 == 4)
+	{
+		if (!dm_pcs->isDynamic())
+		{
+			m_pcs->cal_integration_point_value = true;
+			dm_pcs->CalIntegrationPointValue();
+		}
+		if (dm_pcs->type == 42)  // H2M. 07.2011. WW
+			dm_pcs->CalcSecondaryVariablesUnsaturatedFlow();
+	}*/
+	return 1.0;
 }
 
 /**************************************************************************

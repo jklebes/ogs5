@@ -719,7 +719,7 @@ bool readGLIFileV4(const std::string& fname, GEOObjects* geo,
     }
     else
         std::cerr
-            << "tag #SURFACE not found or input stream error in GEOObjects"
+            //<< "tag #SURFACE not found or input stream error in GEOObjects" //CMCD had enough of this error the whole time!
             << "\n";
     in.close();
 

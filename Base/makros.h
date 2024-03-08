@@ -251,6 +251,9 @@
 //#define GLI // KR
 #define noWINDOWS
 
+//Set up aspects of the code
+#define USE_TRANSPORT_FLUX
+
 /**********************************************************************/
 /* Parallelization */
 #define noPARALLEL
@@ -328,7 +331,8 @@ extern std::string FileName;
 extern std::string FilePath;  // WW
 
 #define RESET_4410  // H2_ELE test
-
+#define NO_BIO_OUT
+//BIO_OUT
 //---- MPI Parallel --------------
 #if defined(USE_MPI) || defined(USE_MPI_PARPROC) ||      \
     defined(USE_MPI_REGSOIL) || defined(USE_MPI_GEMS) || \

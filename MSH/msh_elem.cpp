@@ -526,7 +526,9 @@ void CElem::SetFace(CElem* onwer, const int Face)
         case MshElemType::HEXAHEDRON:  // 3-D hexahedral element
             this->setElementProperties(MshElemType::QUAD8);
             break;
-        // case MshElemType::TRIANGLE:  // 2-D triagular element
+        case MshElemType::TRIANGLE:  // 2-D triagular element
+			this->setElementProperties(MshElemType::LINE);  // CMCD 2020
+			break;
         case MshElemType::TETRAHEDRON:  // 3-D tetrahedral element
             this->setElementProperties(MshElemType::TRIANGLE);
             break;
@@ -1635,24 +1637,32 @@ void CElem::FaceNormal(int index0, int index1, double* face)
 **************************************************************************/
 void CElem::SetNormalVector()
 {
+	int coord_flag = 0; //CMCD 2020
     if (!normal_vector)
-        normal_vector = new double[3];                // WW
+        normal_vector = new double[3]; // WW
     if (this->GetElementType() == MshElemType::LINE)  // JOD 2014-11-10
     {
         double const* const p0(nodes[0]->getData());
         double const* const p1(nodes[1]->getData());
+		
+		coord_flag = this->GetMshCoordFlagFromEle();//if (coordinate_system == 22)
+		
         double v1[3] = {p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]};
-        if (fabs(v1[2]) > 1.e-20)
+        /*if (fabs(v1[2]) > 1.e-20)
         {
             double buffer = v1[1];
             v1[1] = v1[2];
             v1[2] = buffer;
-        }
-        const double v2[3] = {0, 0, 1};  // fluxes are on xy plane
-        CrossProduction(v1, v2, normal_vector);
+        }*/
+        double v2[3] = {0, 0, 1};  // fluxes are on xy plane
+		if (coord_flag == 22) {
+			v2[1] = 1;
+			v2[2] = 0;
+		}
+		CrossProduction(v1, v2, normal_vector);
         NormalizeVector(normal_vector, 3);
-        if (normal_vector[0] < 0)
-            normal_vector[0] = -normal_vector[0];
+       // if (normal_vector[0] < 0)
+            //normal_vector[0] = -normal_vector[0];
     }
     if (this->GetElementType() == MshElemType::TRIANGLE)
     {

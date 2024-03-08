@@ -366,6 +366,7 @@ void SurfaceGrid::writeTrianglesInGridCell(std::size_t i,
 
 bool SurfaceGrid::isPntInSurface(const double* pnt, double eps) const
 {
+    
     const size_t i(
         static_cast<size_t>((pnt[0] - _min_pnt[0]) * _inverse_step_sizes[0]));
     const size_t j(

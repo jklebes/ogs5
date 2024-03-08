@@ -132,6 +132,14 @@ public:
     {
         return representative_length;
     }
+	void SetElemPartOfMeshCoordFlag(int cord)  // CMCD
+	{
+		msh_coordinate_flag = cord;
+	}
+	int GetMshCoordFlagFromEle() //CMCD
+	{
+		return msh_coordinate_flag;
+	}
     //------------------------------------------------------------------
     // ID
     MshElemType::type GetElementType() const { return geo_type; }
@@ -298,6 +306,7 @@ public:
     double representative_length;  // For stability calculations
     double courant;
     double neumann;  // MSH topology
+	int msh_coordinate_flag; // CMCD_2020
 
     int GetExcavState()
     {

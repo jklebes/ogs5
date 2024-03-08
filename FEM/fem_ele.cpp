@@ -13,6 +13,7 @@
  */
 
 #include "fem_ele.h"
+#include "fem_ele_std.h"
 
 #include <cfloat>
 #include <cassert>
@@ -175,6 +176,9 @@ void CElement::ConfigElement(CElem* MElement, const bool FaceIntegration)
     CNode* a_node = NULL;  // 07.04.2009. WW
     MeshElement = MElement;
     Index = MeshElement->GetIndex();
+	if (Index == 2152) {
+		Index = Index;
+	}
     nnodes = MeshElement->nnodes;
     nnodesHQ = MeshElement->nnodesHQ;
     ele_dim = MeshElement->GetDimension();
@@ -461,8 +465,9 @@ void CElement::ConfigShapefunction(MshElemType::type elem_type)
             ShapeFunctionHQ = ShapeFunctionTriHQ;
             GradShapeFunction = GradShapeFunctionTri;
             GradShapeFunctionHQ = GradShapeFunctionTriHQ;
-            extrapo_method = ExtrapolationMethod::EXTRAPO_LINEAR;
-            return;
+			//extrapo_method = ExtrapolationMethod::EXTRAPO_AVERAGE;
+			extrapo_method = ExtrapolationMethod::EXTRAPO_LINEAR;
+			return;
         case MshElemType::TETRAHEDRON:
             ele_dim = 3;
             //	   nGaussPoints = nGauss = 15;  // Fixed to 15
@@ -538,11 +543,30 @@ double CElement::interpolate(const int idx, CRFProcess* m_pcs, const int order)
     const double* inTerpo = (order == 2) ? shapefctHQ : shapefct;
     double val = 0.0;
 
-    //
     for (i = 0; i < nn; i++)
         node_val[i] = m_pcs->GetNodeValue(nodes[i], idx);
     for (int i = 0; i < nn; i++)
         val += node_val[i] * inTerpo[i];
+    return val;
+}
+/**************************************************************************
+   FEMLib-Method:
+   Task:
+   Programing:
+   11/2020 CMCD Implementation
+   Last modified:
+**************************************************************************/
+double CElement::minimumvalue(const int idx, CRFProcess* m_pcs)
+{
+    int i;
+    int nn = nnodes;
+    double val = 1.0e99;
+
+    //
+    for (i = 0; i < nn; i++)
+        node_val[i] = m_pcs->GetNodeValue(nodes[i], idx);
+    for (int i = 0; i < nn; i++)
+        if (val > node_val[i]) val = node_val[i];
     return val;
 }
 /**************************************************************************
@@ -564,8 +588,11 @@ double CElement::elemnt_average(const int idx, CRFProcess* m_pcs,
         nn = nnodes;
     // WW       inTerpo = shapefctHQ;
     //
-    for (i = 0; i < nn; i++)
-        node_val[i] = m_pcs->GetNodeValue(nodes[i], idx);
+	for (i = 0; i < nn; i++) {
+		node_val[i] = m_pcs->GetNodeValue(nodes[i], idx);
+		val += node_val[i];//CMCD July 2021
+	}
+
     return val / (double)nn;
 }
 
@@ -1369,12 +1396,14 @@ void CElement::SetExtropoGaussPoints(const int i)
                     unit[1] = -0.1666666666667;
                     break;
                 case 1:
-                    unit[0] = 1.6666666666667;
+                    ///unit[0] = 1.6666666666667; //CMCD March 2022
+					unit[0] = 4.0 / 3.0;
                     unit[1] = -0.1666666666667;
                     break;
                 case 2:
                     unit[0] = -0.1666666666667;
-                    unit[1] = 1.6666666666667;
+                    //unit[1] = 1.6666666666667;
+					unit[1] = 4.0 / 3.0; //CMCD March 2022
                     break;
             }
             break;
@@ -1633,74 +1662,103 @@ Programming:
 
 **************************************************************************/
 
-void CElement::FaceNormalFluxIntegration(long /*element_index*/,
-                                         double* NodeVal, double* NodeVal_adv,
-                                         int* /*nodesFace*/, CElem* /*face*/,
-                                         CRFProcess* m_pcs,
-                                         double* normal_vector)
+void CElement::FaceNormalFluxIntegration(long element_index,
+	double* NodeVal, double* NodeVal_adv,
+	int* /*nodesFace*/, CElem* /*face*/,
+	CRFProcess* m_pcs,
+	double* normal_vector,
+	bool diffusive_only)
 {
-    double normal_diff_flux_interpol, normal_adv_flux_interpol;
-    double dbuff_adv[10], flux[3];
-    // ElementValue* gp_ele = ele_gp_value[element_index];
+	double normal_diff_flux_interpol, normal_adv_flux_interpol;
+	double dbuff_adv[10], flux[3];
+	double temp;
+	int fluxtype = 0;
 
-    setOrder(Order);
+	setOrder(Order);
 
-    for (int i = 0; i < nNodes; i++)
-    {
-        dbuff[i] = 0.0;
-        dbuff_adv[i] = 0.0;
-    }
+	FiniteElement::ElementValue* gp_ele;
+	gp_ele = ele_gp_value[element_index];
 
-    // Loop over Gauss points
-    for (gp = 0; gp < nGaussPoints; gp++)
-    {
-        int gp_r, gp_s, gp_t;
-        const double fkt = GetGaussData(gp, gp_r, gp_s, gp_t);
+	for (int i = 0; i < nNodes; i++)
+	{
+		dbuff[i] = 0.0;
+		dbuff_adv[i] = 0.0;
+	}
+	// Loop over Gauss points
+	for (gp = 0; gp < nGaussPoints; gp++)
+	{
+		int gp_r, gp_s, gp_t;
+		const double fkt = GetGaussData(gp, gp_r, gp_s, gp_t);
 
-        getShapefunctValues(gp, Order);
-        double const* sf = (Order == 1) ? shapefct : shapefctHQ;
+		getShapefunctValues(gp, Order);
+		double const* sf = (Order == 1) ? shapefct : shapefctHQ;
 
-        normal_diff_flux_interpol = 0.0;
+		normal_diff_flux_interpol = 0.0;
+		if ((m_pcs->getProcessType() == FiniteElement::GROUNDWATER_FLOW) ||
+			(m_pcs->getProcessType() == FiniteElement::LIQUID_FLOW))
+			fluxtype = 1;
+		if ((m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT) ||
+			(m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT))
+			fluxtype = 2;
+		if (diffusive_only) fluxtype = 3;
 
-        if ((m_pcs->getProcessType() == FiniteElement::GROUNDWATER_FLOW) ||
-            (m_pcs->getProcessType() == FiniteElement::LIQUID_FLOW))
-        {
-            for (int i = 0; i < nNodes; i++)  // Darcy flux
-                normal_diff_flux_interpol += NodeVal[i] * sf[i];
 
-            for (int i = 0; i < nNodes; i++)  // Integration
-                dbuff[i] += normal_diff_flux_interpol * sf[i] * fkt;
-        }
-        else if ((m_pcs->getProcessType() == FiniteElement::HEAT_TRANSPORT) ||
-                 (m_pcs->getProcessType() == FiniteElement::MASS_TRANSPORT))
-        {
-            normal_adv_flux_interpol = 0.0;
+		switch (fluxtype)
+		{
+		case 1:
+			for (int i = 0; i < nNodes; i++)  // Darcy flux
+				normal_diff_flux_interpol += NodeVal[i] * sf[i];
 
-            for (int i = 0; i < nNodes; i++)
-                normal_adv_flux_interpol += NodeVal_adv[i] * sf[i];
+			for (int i = 0; i < nNodes; i++)  // Integration
+				dbuff[i] += normal_diff_flux_interpol * sf[i] * fkt;
+			break;
+		case 2:
+			normal_adv_flux_interpol = 0.0;
 
-            for (int i = 0; i < nNodes; i++)
-            {  // Integration
+			for (int i = 0; i < nNodes; i++)
+				normal_adv_flux_interpol += NodeVal_adv[i] * sf[i];
+
+			for (int i = 0; i < nNodes; i++)
+			{  // Integration
 #ifdef USE_TRANSPORT_FLUX
-               // Fick or Fourier diffusion
-                for (int l = 0; l < 3; l++)
-                    flux[l] = gp_ele->TransportFlux(l, gp);
+			// Fick or Fourier diffusion
+			for (int l = 0; l < 3; l++)
+				flux[l] = gp_ele->TransportFlux(l, gp);
 #endif
-                normal_diff_flux_interpol = PointProduction(
-                    flux, normal_vector);  //    fabs(PointProduction(flux,
-                                           //    normal_vector));
-                dbuff[i] += normal_diff_flux_interpol * sf[i] * fkt;
-                // advection
-                dbuff_adv[i] += normal_adv_flux_interpol * sf[i] * fkt;
-            }
-        }  // end transport
-    }      // end gauss points
+				normal_diff_flux_interpol = PointProduction(flux, normal_vector);  
 
-    for (int i = 0; i < nNodes; i++)
-    {
-        NodeVal[i] = dbuff[i];
-        NodeVal_adv[i] = dbuff_adv[i];
-    }
+				dbuff[i] += normal_diff_flux_interpol * sf[i] * fkt;
+				// advection
+				dbuff_adv[i] += normal_adv_flux_interpol * sf[i] * fkt;
+			}
+			break;
+		case 3:
+			normal_adv_flux_interpol = 0.0;
+
+#ifdef USE_TRANSPORT_FLUX
+			// Fick or Fourier diffusion
+
+			for (int l = 0; l < 3; l++)
+				flux[l] = gp_ele->TransportFlux(l, gp);
+
+			temp = flux[2];
+			flux[2] = flux[1];
+			flux[1] = temp;
+#endif
+			normal_diff_flux_interpol = PointProduction(flux, normal_vector);  
+			normal_adv_flux_interpol = sqrt(flux[0] * flux[0] + flux[1] * flux[1] + flux[2] * flux[2]);
+			for (int i = 0; i < nNodes; i++) {  // Integration
+				dbuff[i] += abs(normal_diff_flux_interpol) * sf[i] * fkt;
+				dbuff_adv[i] += normal_adv_flux_interpol * sf[i] * fkt;
+			}
+			break;
+		} // end transport diffusiv only
+	}      // end gauss points
+
+	for (int i = 0; i < nNodes; i++)
+	{
+		NodeVal[i] = dbuff[i];
+		NodeVal_adv[i] = dbuff_adv[i];
+	}
 }
-
 }  // end namespace FiniteElement
