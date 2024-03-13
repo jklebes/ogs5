@@ -4,6 +4,7 @@
 
 This is the University of Edinburgh version, in use as of March 2024.
 Routines ``FEM/rf_bio.cpp`` were added.
+Author Christopher McDermott, committer Jason Klebes.
 
 To build from this source (on a cluster with MPI) enforce MPI and C++ version less than 17:
 
