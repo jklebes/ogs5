@@ -1,6 +1,6 @@
 /**
  * \copyright
- * Copyright (c) 2018, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2020, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
@@ -1282,8 +1282,8 @@ double GetHetValue(int ele_no, char* inname)
         {
             /* found */
             //  value = ELEGetHetFieldValue(ele_no,i);
-            value = m_msh->ele_vector[ele_no]->mat_vector(
-                material_properties_index);
+            value = m_msh->ele_vector[ele_no]
+                        ->mat_vector[material_properties_index];
             return value;
         }
     }
