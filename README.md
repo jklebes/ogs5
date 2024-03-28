@@ -6,14 +6,16 @@ This is the University of Edinburgh version, in use as of March 2024.
 Routines ``FEM/rf_bio.cpp`` were added.
 Author Christopher McDermott, committer Jason Klebes.
 
-To build from this source (on a cluster with MPI) enforce MPI and C++ version less than 17:
+To build from this source, on a cluster with MPI compiler wrappers and corresponding PETSC install (exporting ``PETSC_DIR`` and ``PETSC_ARCH``) loaded into the environment:
 
 ```bash
 mkdir build
 cd build 
-cmake .. -DCMAKE_BUILD_TYPE=Release -DPARALLEL_USE_MPI=ON -DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF
+cmake .. -DCMAKE_BUILD_TYPE=Release -DOGS_CONFIG=PETSC -DCMAKE_CXX_COMPILER=$(which mpicxx) -DCMAKE_C_COMPILER=$(which mpicc)
 cmake --build . --config Release
 ```
+In case of build errors "error: ISO C++17 does not allow dynamic exception specifications", It may also be necessary to add cmake flags ``-DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_STANDARD_REQUIRED=ON -DCMAKE_CXX_EXTENSIONS=OFF``; if these are ignored to add compiler flag ``-std=c++14`` to flags list text in ``./scripts/cmake/CompilerSetup.cmake``.
+
 
 # OGS-5
 
