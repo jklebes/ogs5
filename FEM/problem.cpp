@@ -820,7 +820,11 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
 		if (!activefunc)
 			return 13;
 		total_processes[13] = m_pcs;
+#if !defined(NEW_EQS) && !defined(USE_PETSC)
 		active_processes[13] = &Problem::Biological;
+#else
+		std::cout << "Error: use of Problem::Biological calls setCPL, is not implemented for PETSc.  More consideration needed to implement parallel solution - JK 2024."; 
+#endif
 		return 13;
 	}
     else if (m_pcs->getProcessType() == FiniteElement::PS_GLOBAL)
@@ -4016,6 +4020,7 @@ Programming:
 07/2008 WW Extract from LOPTimeLoop_PCS();
 Modification:
 -------------------------------------------------------------------------*/
+#if !defined(NEW_EQS) && !defined(USE_PETSC) 
 inline double Problem::Biological()
 {
 	//CRFProcessDeformation* dm_pcs = NULL;
@@ -4051,7 +4056,7 @@ inline double Problem::Biological()
 	}*/
 	return 1.0;
 }
-
+#endif
 /**************************************************************************
    FEMLib-Method:
    02/2005 OK Implementation
