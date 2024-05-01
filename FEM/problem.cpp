@@ -820,11 +820,7 @@ inline int Problem::AssignProcessIndex(CRFProcess* m_pcs, bool activefunc)
 		if (!activefunc)
 			return 13;
 		total_processes[13] = m_pcs;
-#if !defined(NEW_EQS) && !defined(USE_PETSC)
 		active_processes[13] = &Problem::Biological;
-#else
-		std::cout << "Error: use of Problem::Biological calls setCPL, is not implemented for PETSc.  More consideration needed to implement parallel solution - JK 2024."; 
-#endif
 		return 13;
 	}
     else if (m_pcs->getProcessType() == FiniteElement::PS_GLOBAL)
@@ -4020,7 +4016,6 @@ Programming:
 07/2008 WW Extract from LOPTimeLoop_PCS();
 Modification:
 -------------------------------------------------------------------------*/
-#if !defined(NEW_EQS) && !defined(USE_PETSC) 
 inline double Problem::Biological()
 {
 	//CRFProcessDeformation* dm_pcs = NULL;
@@ -4036,7 +4031,10 @@ inline double Problem::Biological()
 	std::cout << "      ================================================" << "\n";
 	std::cout << "      Analytical solution "<< "\n";
 	
+#if !defined(NEW_EQS) && !defined(USE_PETSC) 
+	// purpose of this line, and what happens without it if we are on a PETSC build? -JK 2024 
 	m_pcs->SetCPL();
+#endif
 	CalculateBiomassGrowth(m_pcs);//CMCD Problem to sort
 	/*if (dm_pcs->pcs_type_name_vector.size() > 0 &&
 		dm_pcs->pcs_type_name_vector[0].find("DYNAMIC") != std::string::npos)
@@ -4056,7 +4054,6 @@ inline double Problem::Biological()
 	}*/
 	return 1.0;
 }
-#endif
 /**************************************************************************
    FEMLib-Method:
    02/2005 OK Implementation
