@@ -1,6 +1,6 @@
 /**
  * \copyright
- * Copyright (c) 2018, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2020, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
@@ -5526,7 +5526,7 @@ double CKinReact::GetPhaseVolumeAtNode(long node_number, double theta,
                 if (m_mat_mp->vol_mat_model == 1)  // homogeneous
                     poro = m_mat_mp->vol_mat;
                 else if (m_mat_mp->vol_mat_model == 2)  // CB heterogeneous
-                    poro = m_ele->mat_vector(idx);
+                    poro = m_ele->mat_vector[idx];
                 else
                     cout << "Warning! No valid VOL_MAT model in "
                             "CKinReact::GetPhaseVolumeAtNode, vol_mat_model ="
@@ -5536,7 +5536,7 @@ double CKinReact::GetPhaseVolumeAtNode(long node_number, double theta,
                 if (m_mat_mp->vol_bio_model == 1)  // homogeneous
                     poro = m_mat_mp->vol_bio;
                 else if (m_mat_mp->vol_bio_model == 2)  // CB heterogeneous
-                    poro = m_ele->mat_vector(idx);
+                    poro = m_ele->mat_vector[idx];
                 else
                     cout << "Warning! No valid VOL_BIO model in "
                             "CKinReact::GetPhaseVolumeAtNode, vol_bio_model ="

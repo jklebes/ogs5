@@ -285,7 +285,7 @@ public:
 
     //------------------------------------------------------------------
     // MAT
-    Math_Group::Vec mat_vector;  // OKWW
+    std::vector<double> mat_vector;  // OKWW
     // WWint matgroup_view;                        //TK
     //------------------------------------------------------------------
     // Operator

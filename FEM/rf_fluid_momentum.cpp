@@ -1,6 +1,6 @@
 /**
  * \copyright
- * Copyright (c) 2018, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2020, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
@@ -1106,7 +1106,7 @@ here. MeshLib::CElem* elem = NULL;
         double const* center(elem->GetGravityCenter());
 
         fprintf(tet_file, "%17.12e %17.12e %17.12e %17.12e\n",
-                center[0], center[1], center[2], elem->mat_vector(0) * 1e7);
+                center[0], center[1], center[2], elem->mat_vector[0] * 1e7);
     }
 
     // Let's close it, now

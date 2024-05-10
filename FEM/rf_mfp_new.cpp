@@ -1,6 +1,6 @@
 /**
  * \copyright
- * Copyright (c) 2018, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2020, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
@@ -38,8 +38,8 @@ extern double GetCurveValue(int, int, double, int*);
 #include "rf_REACT_GEM.h"
 #endif
 
-#include "PhysicalConstant.h"
 #include "Material/Fluid/Density/WaterDensityIAPWSIF97Region1.h"
+#include "PhysicalConstant.h"
 
 /* Umrechnungen SI - Amerikanisches System */
 // WW #include "steam67.h"
@@ -561,6 +561,8 @@ std::ios::pos_type CFluidProperties::Read(std::ifstream* mfp_file)
                         break;
                     case 'W':  // WATER
                         fluid_id = 1;
+                        arg1 = "PRESSURE1";
+                        arg2 = "TEMPERATURE1";
                         break;
                     case 'M':  // METHANE
                         fluid_id = 2;
@@ -591,8 +593,16 @@ std::ios::pos_type CFluidProperties::Read(std::ifstream* mfp_file)
                     arg2 = "TEMPERATURE1";
 
                 viscosity_pcs_name_vector.push_back(arg1);
-                if (T_Process)
+                if (T_Process || fluid_id == 1)
                     viscosity_pcs_name_vector.push_back(arg2);
+            }
+            // AnSichT 2013, Chierici 1994
+            if (viscosity_model == 10)
+            {
+                in >> C_0;
+
+                viscosity_pcs_name_vector.push_back("PRESSURE1");
+                viscosity_pcs_name_vector.push_back("TEMPERATURE1");
             }
             // AKS
             if (density_model == 15)  // components constant viscosity
@@ -1036,7 +1046,7 @@ void MFPWrite(std::string base_file_name)
    last modification:
 **************************************************************************/
 void CFluidProperties::CalPrimaryVariable(
-    std::vector<std::string>& pcs_name_vector)
+    std::vector<std::string> const& pcs_variable_name_vector)
 {
 	CRFProcess* m_pcs = NULL;
 	CFiniteElementStd* tFem_Ele_Std;
@@ -1055,10 +1065,10 @@ void CFluidProperties::CalPrimaryVariable(
 	
 	
 
-    for (int i = 0; i < (int)pcs_name_vector.size(); i++)
+    for (int i = 0; i < (int)pcs_variable_name_vector.size(); i++)
     {
         // MX  m_pcs = PCSGet("HEAT_TRANSPORT");
-        m_pcs = PCSGet(pcs_name_vector[i], true);
+        m_pcs = PCSGet(pcs_variable_name_vector[i], true);
         if (!m_pcs)
             continue;  // MX  //CMCD Continue instead of return
 
@@ -1067,7 +1077,7 @@ void CFluidProperties::CalPrimaryVariable(
 			tFem_Ele_Std->ConfigElement(m_pcs->m_msh->ele_vector[index]);
 		}
 		else tFem_Ele_Std = Fem_Ele_Std;
-		nidx0 = m_pcs->GetNodeValueIndex(pcs_name_vector[i]);
+		nidx0 = m_pcs->GetNodeValueIndex(pcs_variable_name_vector[i]);
         nidx1 = nidx0 + 1;
 
 		if (aktueller_zeitschritt == 1) {
@@ -1104,16 +1114,16 @@ void CFluidProperties::CalPrimaryVariable(
         }
         else
         {
-            if (pcs_name_vector[i].compare("TEMPERATURE1") == 0)
+            if (pcs_variable_name_vector[i].compare("TEMPERATURE1") == 0)
             {
                 primary_variable[i] = _reference_temperature;
             }
         }
     }
-	for (int i = 0; i < (int)pcs_name_vector.size(); i++)//CMCD JULY 2021
+	for (int i = 0; i < (int)pcs_variable_name_vector.size(); i++)//CMCD JULY 2021
 	{
-		if (pcs_name_vector[i].compare("TEMPERATURE1") == 0) {
-			m_pcs = PCSGet(pcs_name_vector[i], true);
+		if (pcs_variable_name_vector[i].compare("TEMPERATURE1") == 0) {
+			m_pcs = PCSGet(pcs_variable_name_vector[i], true);
 			if (m_pcs->getTemperatureUnit() == FiniteElement::CELSIUS)
 				primary_variable[i] -= PhysicalConstant::CelsiusZeroInKelvin;
 		}
@@ -1893,7 +1903,16 @@ double CFluidProperties::Viscosity(double* variables)
                                         mfp_arguments[0], fluid_id);
             break;
         }
-        case 15:  // mixture 1/�= sum_i y_i/�_i:: VTPR-EoS
+        case 10:  // AnSichT 2013, Chierici 1994
+        {
+            viscosity =
+                (1 + 2.765e-3 * C_0) *
+                exp(11.897 - 5.943e-2 * primary_variable[1] +
+                    6.422e-5 * primary_variable[1] * primary_variable[1]) *
+                1e-3;
+            break;
+        }
+        case 15:  // mixture 1/ï¿½= sum_i y_i/ï¿½_i:: VTPR-EoS
         {
             CRFProcess* m_pcs = PCSGet("MULTI_COMPONENTIAL_FLOW");
             double my = 0.0;
@@ -3453,8 +3472,8 @@ double CFluidProperties::CalcEnthalpy(double temperature)
    08/2008 OK
    last change: 11/2008 NB
 **************************************************************************/
-double MFPGetNodeValue(long node, const std::string& mfp_name,
-                       int phase_number, const bool for_output)
+double MFPGetNodeValue(long node, const std::string& mfp_name, int phase_number,
+                       const bool for_output)
 {
     CFluidProperties* m_mfp = mfp_vector[max(phase_number, 0)];
     const int restore_mode = m_mfp->mode;
@@ -3506,11 +3525,12 @@ double MFPGetNodeValue(long node, const std::string& mfp_name,
                 arguments[0] = pcs->GetNodeValue(node, var_idx);
             else if ((*vec_var_names)[i] == "TEMPERATURE1")
             {
-                arguments[1] = ((pcs->getTemperatureUnit() ==
-                                       FiniteElement::CELSIUS) && for_output)
-                                   ? pcs->GetNodeValue(node, var_idx) +
-                                         PhysicalConstant::CelsiusZeroInKelvin
-                                   : pcs->GetNodeValue(node, var_idx);
+                arguments[1] =
+                    ((pcs->getTemperatureUnit() == FiniteElement::CELSIUS) &&
+                     for_output)
+                        ? pcs->GetNodeValue(node, var_idx) +
+                              PhysicalConstant::CelsiusZeroInKelvin
+                        : pcs->GetNodeValue(node, var_idx);
             }
             else if ((*vec_var_names)[i] == "CONCENTRATION1")
                 arguments[2] = pcs->GetNodeValue(node, var_idx);

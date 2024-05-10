@@ -2,7 +2,7 @@
  * \file FEM/Output.h
  * 05/04/2011 LB Refactoring: Moved from rf_out_new.h
  * \copyright
- * Copyright (c) 2018, OpenGeoSys Community (http://www.opengeosys.org)
+ * Copyright (c) 2020, OpenGeoSys Community (http://www.opengeosys.org)
  *            Distributed under a Modified BSD License.
  *              See accompanying file LICENSE.txt or
  *              http://www.opengeosys.org/project/license
@@ -270,6 +270,7 @@ private:
     /**
      * the position in the global vector out_vector, used only in
      * NODWritePLYDataTEC
+     * and if $NUMBER_TEC_OUTPUT is requested
      */
     size_t _id;
 
@@ -304,6 +305,12 @@ private:
     /// Split Tecplot *element* output in zones for each MG
     /// defaults to false if not tag not present in *.out file
     bool _tecplot_zones_for_mg;
+    //// Add output id to file name
+    bool _number_outputs;
+    /// Output of node number //JM
+    bool _node_id_output;
+    /// Output of quadratic nodes //JM
+    bool _quad_node;
 
 #if defined(USE_PETSC) || \
     defined(USE_MPI)  //|| defined(other parallel libs)//03.3012. WW
