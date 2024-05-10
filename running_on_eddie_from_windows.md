@@ -74,3 +74,14 @@ Alternatively binary files can be output and postprocessed to spatially joined `
 
 ### Desktop Build
 Defaults: ``OGS_CONFIG`` was ``FEM`` and ``OGS_LSOLVER`` was ``RF``.  All preconditioners and solvers are available.  ``spBICGSTAB`` is used when preconditioner, solver options ``100``, ``2`` are requested in the num file.
+
+## Troubleshooting
+
+- Stuck at qstat status ``Eqw``- Windows carriage returns in submit script, run ``dos2unix`` on submit script.  Or other error/typo in first ``#$`` lines of submit script.
+- Job aborted near beginning of output logs, no error in error log, ``qacct`` exit code ``1`` - likely windows carriage returns in some input files.  Try ``dos2unix`` on all files.  Test in an interactive sesion.
+- Job aborted with no error in error logs:  Check ``qacct -j <jobid>`` for ``failed 44  : execd enforced h_rt limit`` or ``execd enforced h_vmem limit`` from one node, increase requested time or memory.
+- MPI simulation ran, but output in the single .tec file is scrambled: ``.ddc`` file not matching number of MPI cores was present in the input directory.
+- Simulation ran unusually quickly, ``nan``, ``-nan``, and ``Inf`` values in output .tec file: was the wrong (petsc/ non-petsc) solver requested in .num files?
+- ``[1]PETSC ERROR: Caught signal number 11 SEGV: Segmentation Violation, probably memory access out of range`` were the petsc partitioned meshes generated with ``-q`` if deformation is required?
+- ``qacct`` log shows all CPU, memory activity on the last process only, with other cores doing seemingly no work: this is normal and due to the way accouting/estimation is done. Add ``mpirun`` flag ``--tag-output`` to see all processes active in the output logs.
+- "``ORTE does not know how to route a message to the specified daemon located on the indicated node``" and other ORTE errors: is the right openmpi version loaded, matching the one OGS5 was compiled with? On eddie that's  ``module load openmpi/1.10.1`` for most builds, ``module load intel/2021_oneAPI`` for intel/MKL builds.
