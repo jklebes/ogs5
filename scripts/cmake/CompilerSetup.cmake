@@ -56,7 +56,7 @@ if(COMPILER_IS_GCC)
 		endif()
 	endif()
 
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CPU_FLAGS} -Wno-deprecated -Wall -Wextra -fno-nonansi-builtins")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CPU_FLAGS} -Wno-deprecated -Wall -Wextra -fno-nonansi-builtins -std=c++14")
 
 	execute_process(COMMAND ${CMAKE_C_COMPILER} -dumpversion OUTPUT_VARIABLE GCC_VERSION)
 	string(REPLACE "\n" "" GCC_VERSION ${GCC_VERSION})

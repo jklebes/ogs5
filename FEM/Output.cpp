@@ -2348,9 +2348,9 @@ double COutput::NODWritePLYDataTEC(int number)
                 << " ";  // NB: MFP output for all phases
 
 		node = m_msh->nod_vector[nodes_vector[j]];  // CMCD GREAT
-		const double *x = node->getData();//Add X Y Z at end of ply
+		const double *xx = node->getData();//Add X Y Z at end of ply
 		for (size_t k = 0; k < 3; k++){
-			tec_file <<" "<< x[k] << " ";
+			tec_file <<" "<< xx[k] << " ";
 		}
         tec_file << "\n";
     }

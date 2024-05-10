@@ -4031,7 +4031,10 @@ inline double Problem::Biological()
 	std::cout << "      ================================================" << "\n";
 	std::cout << "      Analytical solution "<< "\n";
 	
+#if !defined(NEW_EQS) && !defined(USE_PETSC) 
+	// purpose of this line, and what happens without it if we are on a PETSC build? -JK 2024 
 	m_pcs->SetCPL();
+#endif
 	CalculateBiomassGrowth(m_pcs);//CMCD Problem to sort
 	/*if (dm_pcs->pcs_type_name_vector.size() > 0 &&
 		dm_pcs->pcs_type_name_vector[0].find("DYNAMIC") != std::string::npos)
@@ -4051,7 +4054,6 @@ inline double Problem::Biological()
 	}*/
 	return 1.0;
 }
-
 /**************************************************************************
    FEMLib-Method:
    02/2005 OK Implementation
