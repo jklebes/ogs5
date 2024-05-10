@@ -26,7 +26,6 @@
 - Check progress with ``qstat`` :  ``qw`` for waiting, ``r`` for running, ``E`` for error/exitting.  Delete jobs with ``qdel <jobID>`` .
   	- If the job is successful it runs for the required time, then output data files and log files appear in the project directory.
 	- Troubleshooting:  Look in ``/exports/eddie/scratch/<uun>/<project>`` for files ``<jobname>.e<jobID>`` (error and warnings log), ``<jobname>.o<jobID>`` (output log) .  Also check output of command ``qacct -j <jobID>`` .
-		- Stuck at ``Eqw`` with no output likely means a problem in the resource request ``#$`` lines of the script.  Check the path at ``-wd`` exists, check for invisble characters (run ``dos2unix`` on the submit script file), and check fail reason in ``qacct -j <jobID>``.
     
 - Copy output data back using WinSCP, stfp, scp, or rsync .
 
